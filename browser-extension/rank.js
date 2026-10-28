@@ -745,7 +745,75 @@
     return n;
   }
 
-  const DCRank = { fbVideos, fbPathOf, countVideos, socialSite, socialPostUrl, pickHeight, attachmentDownload, videoDismissKey, directDownloadLink, addDirectExtensions, hideDownloadUI, playerEvidence, playlistReferences, samePlayer, completePlaylist, isVimeoAdaptive, isVimeoFragment, vimeoVideoPage, isPlaylistUrl, isSegmentUrl, canonicalUrl, kindOf, scoreMedia, classifyResponse, sniffBytes, forwardHeaders, extOf, dispositionFilename, collapseDupes, fmtDur, panelTokens, dcThemeMode, dcSetTheme, paintDcPanel };
+  // The first bytes of an MP4 (ISO-BMFF) file: its picture size and whether
+  // its tracks are DRM-encrypted (CENC "encv"/"enca" sample entries).
+  // Returns { w, h, drm } once `moov` is in `bytes`; { moovAt } when the
+  // file keeps `moov` after the media data (fetch from there and call
+  // again with `base` = that offset); null when it is not an MP4 or more
+  // bytes are needed.
+  function mp4Info(bytes, base) {
+    const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    const u32 = (i) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+    const type = (i) => String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]);
+    const off0 = base || 0;
+    let i = 0;
+    let first = true;
+    while (i + 8 <= b.length) {
+      let size = u32(i);
+      const t = type(i + 4);
+      let head = 8;
+      if (size === 1) {
+        if (i + 16 > b.length) return null;
+        size = u32(i + 8) * 4294967296 + u32(i + 12);
+        head = 16;
+      }
+      if (first && !off0 && !/^(ftyp|styp|moov|free|skip|wide)$/.test(t)) return null;
+      first = false;
+      if (size === 0 || size < head) return null;
+      if (t === "moov") {
+        if (i + size > b.length) return null; // need more bytes
+        const out = { w: 0, h: 0, drm: false };
+        walk(i + 8, i + size, out, 0);
+        return out;
+      }
+      if (i + size > b.length) return { moovAt: off0 + i + size };
+      i += size;
+    }
+    return null;
+
+    function walk(from, to, out, depth) {
+      let j = from;
+      let track = null;
+      while (j + 8 <= to && depth < 9) {
+        const size = u32(j);
+        const t = type(j + 4);
+        if (size < 8 || j + size > to) return track;
+        const body = j + 8;
+        if (t === "encv" || t === "enca") out.drm = true;
+        else if (t === "trak") {
+          const tr = walk(body, j + size, out, depth + 1) || {};
+          if (tr.video && tr.h > out.h) { out.w = tr.w; out.h = tr.h; }
+        } else if (t === "tkhd" && size >= 92) {
+          // Width and height are the box's last 8 bytes (16.16 fixed).
+          track = track || {};
+          track.w = u32(j + size - 8) >>> 16;
+          track.h = u32(j + size - 4) >>> 16;
+        } else if (t === "hdlr" && size >= 20) {
+          track = track || {};
+          if (type(body + 8) === "vide") track.video = true;
+        } else if (t === "mdia" || t === "minf" || t === "stbl") {
+          const inner = walk(body, j + size, out, depth + 1);
+          if (inner) track = Object.assign(track || {}, inner, { w: (track && track.w) || inner.w, h: (track && track.h) || inner.h });
+        } else if (t === "stsd" && size > 16) {
+          walk(body + 8, j + size, out, depth + 1);
+        }
+        j += size;
+      }
+      return track;
+    }
+  }
+
+  const DCRank = { mp4Info, fbVideos, fbPathOf, countVideos, socialSite, socialPostUrl, pickHeight, attachmentDownload, videoDismissKey, directDownloadLink, addDirectExtensions, hideDownloadUI, playerEvidence, playlistReferences, samePlayer, completePlaylist, isVimeoAdaptive, isVimeoFragment, vimeoVideoPage, isPlaylistUrl, isSegmentUrl, canonicalUrl, kindOf, scoreMedia, classifyResponse, sniffBytes, forwardHeaders, extOf, dispositionFilename, collapseDupes, fmtDur, panelTokens, dcThemeMode, dcSetTheme, paintDcPanel };
   g.DCRank = DCRank;
   if (typeof module !== "undefined" && module.exports) module.exports = DCRank;
 })(typeof globalThis !== "undefined" ? globalThis : this);

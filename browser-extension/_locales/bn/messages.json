@@ -20,6 +20,9 @@
   "barChooseQuality": {
     "message": "Download Craft-এ ভিডিওর মান বাছুন"
   },
+  "drmProtected": {
+    "message": "এই ভিডিওটি DRM-সুরক্ষিত, তাই এটি ডাউনলোড করা যাবে না: সংরক্ষিত কপিতে কোনো ছবি বা শব্দ থাকবে না। সাইটেই দেখুন।"
+  },
   "barDownloadVideo": {
     "message": "ভিডিওটি Download Craft দিয়ে ডাউনলোড করুন"
   },

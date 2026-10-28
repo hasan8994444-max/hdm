@@ -14,7 +14,8 @@
 //! `progress.json` several times a second; this window polls that file +
 //! `queue.json` and draws
 //! them. Pause/Resume/Cancel go back through `cmd.json`, polled by the main
-//! app. Closing this window never stops the download (like IDM).
+//! app. Closing this window pauses a running download (Resume, or a
+//! double-click on its row, carries on); minimising it keeps it going.
 
 use crate::app::pl;
 use crate::dm::*;
@@ -144,6 +145,10 @@ fn send_cmd_kv(action: &str, k: &str, v: serde_json::Value) {
         }
     }
 }
+/// Set once the user has closed the window, so the Close it sends is not
+/// intercepted again.
+static CLOSING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 fn send_cmd(id: u64, action: &str) {
     let Some(p) = cmd_path() else { return };
     let _guard = crate::model::fs_lock("cmd");
@@ -481,6 +486,21 @@ impl ProgressApp {
         });
     }
 
+    /// The user closed the window (its X, Close, Alt+F4): a download still
+    /// moving is paused rather than left running out of sight. The automatic
+    /// close after completion goes through `close_soon` directly.
+    fn close_by_user(&self, ctx: &egui::Context) {
+        if CLOSING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            return;
+        }
+        let running = self.snap.live
+            || matches!(self.item.as_ref().map(|d| &d.status), Some(Status::Downloading | Status::Queued));
+        if running {
+            send_cmd(self.id, "pause");
+        }
+        Self::close_soon(ctx);
+    }
+
     /// Progress as a 0..1 fraction: bytes of the size, or fragments of a
     /// stream that has no size yet (unknown and neither = 0).
     fn frac(&self, item: &DownloadItem) -> f32 {
@@ -591,6 +611,14 @@ impl eframe::App for ProgressApp {
         }
         if let Some(it) = &self.item {
             crate::fonts::ensure_text(ctx, &it.filename);
+        }
+        // Alt+F4 / the taskbar's Close: same as the window's own X.
+        if ctx.input(|i| i.viewport().close_requested())
+            && !self.handoff
+            && !CLOSING.load(std::sync::atomic::Ordering::SeqCst)
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.close_by_user(ctx);
         }
         // Theme switches made in the main app while this window is open: the
         // process only read ui.json at start-up, so poll the resolved key
@@ -717,7 +745,7 @@ impl ProgressApp {
                 if i == 0 {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                 } else {
-                    Self::close_soon(&ctx);
+                    self.close_by_user(&ctx);
                 }
             }
         }
@@ -1383,8 +1411,11 @@ impl ProgressApp {
         } else if !downloading {
             vec![(None, "Cancel", "cancel"), (None, "Close", "close")]
         } else {
+            // Cancel stops the transfer here, as the main window's Stop does
+            // (the partial file is kept, so it can be resumed from the list).
             vec![
                 (Some(DmIcon::Pause), "Pause", "pause"),
+                (None, "Cancel", "stop"),
                 (None, "Close", "close"),
             ]
         };
@@ -1429,7 +1460,12 @@ impl ProgressApp {
                     "pause" => send_cmd(self.id, "pause"),
                     "resume" => send_cmd(self.id, "resume"),
                     "cancel" => send_cmd(self.id, "cancel"),
-                    "close" => Self::close_soon(&ctx),
+                    "stop" => {
+                        send_cmd(self.id, "cancel");
+                        CLOSING.store(true, std::sync::atomic::Ordering::SeqCst);
+                        Self::close_soon(&ctx);
+                    }
+                    "close" => self.close_by_user(&ctx),
                     "file" => open_path(&item.dest_path()),
                     "dir" => {
                         if let Some(dir) = item.dest_path().parent() {

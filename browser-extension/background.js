@@ -11,7 +11,7 @@ let lastFallbackError = "";
 // Must match manifest version + content.js EXT_VER. Tabs running an older
 // content script are rejected with a "reload the tab" error instead of
 // failing mysteriously (their extension APIs are gone after a reload).
-const EXT_VER = "0.9.10";
+const EXT_VER = "0.9.11";
 
 // Promise-style calls (the `await api.*` ones below) go through this handle so
 // one file serves both engines: Firefox exposes the promise-returning
@@ -362,6 +362,67 @@ try {
   });
 } catch (e) { /* storage unavailable: stay on */ }
 
+// ---- what a sniffed video file is: its resolution, and whether it is DRM ----
+// The first 512 KB of an MP4 hold its header (or say where it is): enough
+// for "1080p" in the menus, and for flagging encrypted (DRM) files, which
+// never play once saved. Read once per file, two at a time, and the read
+// stops at 512 KB even when a server ignores the Range header.
+const probedFiles = new Map(); // url -> {w,h,drm} | null
+const probeQueue = [];
+let probesRunning = 0;
+function probeVideoFile(url, mime) {
+  const m = String(mime || "").toLowerCase();
+  const looksMp4 = /^video\/(mp4|quicktime|x-m4v)/.test(m) || (!m.startsWith("audio/") && /\.(mp4|m4v|mov)(\?|#|$)/i.test(url));
+  if (!looksMp4 || probedFiles.has(url) || typeof DCRank === "undefined" || !DCRank.mp4Info) return;
+  probedFiles.set(url, null);
+  if (probedFiles.size > 400) probedFiles.delete(probedFiles.keys().next().value);
+  probeQueue.push(url);
+  pumpProbes();
+}
+function pumpProbes() {
+  while (probesRunning < 2 && probeQueue.length) {
+    const url = probeQueue.shift();
+    probesRunning++;
+    probeMp4(url).then((info) => {
+      if (!info) return;
+      probedFiles.set(url, info);
+      for (const list of tabMedia.values()) {
+        for (const e of list) if (e.url === url) Object.assign(e, { w: info.w || undefined, h: info.h || undefined, drm: info.drm || undefined });
+      }
+    }, () => {}).finally(() => { probesRunning--; pumpProbes(); });
+  }
+}
+async function readBytes(url, start, max) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 12000);
+  try {
+    const r = await fetch(url, { headers: { Range: `bytes=${start}-${start + max - 1}` }, credentials: "include", cache: "no-store", signal: ctl.signal });
+    if (!(r.status === 206 || (r.status === 200 && start === 0)) || !r.body) return null;
+    const reader = r.body.getReader();
+    const out = new Uint8Array(max);
+    let n = 0;
+    while (n < max) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const take = Math.min(value.length, max - n);
+      out.set(value.subarray(0, take), n);
+      n += take;
+    }
+    try { await reader.cancel(); } catch (e) { /* done */ }
+    return out.subarray(0, n);
+  } finally { clearTimeout(t); ctl.abort(); }
+}
+async function probeMp4(url) {
+  const head = await readBytes(url, 0, 512 * 1024);
+  if (!head) return null;
+  let info = DCRank.mp4Info(head);
+  if (info && info.moovAt) {
+    const tail = await readBytes(url, info.moovAt, 4 * 1024 * 1024);
+    info = tail ? DCRank.mp4Info(tail, info.moovAt) : null;
+  }
+  return info && (info.h > 0 || info.drm) ? info : null;
+}
+
 function noteMedia(tabId, entry) {
   if (!detectionOn) return;
   if (tabId === undefined || tabId < 0) return;
@@ -390,6 +451,7 @@ function noteMedia(tabId, entry) {
   if (!list) { list = []; tabMedia.set(tabId, list); }
   if (list.some((e) => e.url === entry.url)) return;
   list.push({ ...entry, kind, seenAt: Date.now() });
+  if (kind === "file") probeVideoFile(entry.url, entry.mime);
   // An observed playlist reference is stronger evidence than a filename:
   // some sites name every individual segment .mp4.
   if (typeof DCRank !== "undefined") {

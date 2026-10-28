@@ -5536,6 +5536,40 @@ fn youtube_ytdlp_first(opts: &EngineOpts) -> bool {
 /// app fetched (refreshed when it has gone stale, since YouTube moves on).
 /// `Err` means nothing is available and the caller should stay with the
 /// built-in engine.
+/// First-run readiness, run in the background when the app starts: fetch
+/// every helper that is missing (yt-dlp, ffmpeg, and Deno — the JavaScript
+/// runtime yt-dlp needs for YouTube), so the first video download does not
+/// stop to fetch them. Sources the user set to their own copy or PATH are
+/// left alone; a present helper costs one file check (yt-dlp is also
+/// refreshed when it is over a month old). Returns lines for the app's log.
+pub async fn prepare_helpers() -> Vec<String> {
+    let mut log = Vec::new();
+    let client = match EngineOpts::default().build_client() {
+        Ok(c) => c,
+        Err(e) => return vec![format!("Helpers: could not start a download client ({e:#})")],
+    };
+    let had_ytdlp = ytdlp_info().path.is_some();
+    match ensure_ytdlp(&client).await {
+        Ok(_) if !had_ytdlp => log.push("yt-dlp installed (video sites).".to_string()),
+        Ok(_) => {}
+        Err(e) => log.push(format!("yt-dlp could not be fetched yet ({e:#}) — it is tried again when a video needs it.")),
+    }
+    if ffmpeg_path().is_none() && FfmpegSource::from_settings() == FfmpegSource::Managed {
+        match ensure_ffmpeg(&client).await {
+            Ok(_) => log.push("ffmpeg installed (joins video and audio).".to_string()),
+            Err(e) => log.push(format!("ffmpeg could not be fetched yet ({e:#}) — it is tried again when a video needs it.")),
+        }
+    }
+    if js_runtime().is_none() {
+        match tokio::task::spawn_blocking(deno_install_blocking).await {
+            Ok(Ok(_)) => log.push("Deno installed (YouTube's player check).".to_string()),
+            Ok(Err(e)) => log.push(format!("Deno could not be fetched yet ({e:#}) — install it from Settings → Download Engine.")),
+            Err(_) => {}
+        }
+    }
+    log
+}
+
 async fn ensure_ytdlp(client: &reqwest::Client) -> Result<std::path::PathBuf> {
     let source=YtdlpSource::from_settings();
     let local=ytdlp_local_path().filter(|p|crate::platform::executable_file(p));
@@ -6229,6 +6263,17 @@ fn completed_media_check(json: &str, expected_secs: u64, require_audio: bool) ->
 }
 
 async fn verify_completed_media(dest: &std::path::Path, shared: &Arc<SharedState>) -> Result<()> {
+    let resolved = mutex_guard(&shared.resolved_name).clone();
+    let actual = resolved.map(|name| dest.with_file_name(name)).unwrap_or_else(|| dest.to_path_buf());
+    // DRM media (Widevine/PlayReady/FairPlay) arrives with its samples
+    // encrypted: the file "finishes" but has no picture or sound anywhere.
+    // Say so plainly instead of keeping a file that never plays. The
+    // protection is never worked around.
+    let probe = actual.clone();
+    if tokio::task::spawn_blocking(move || mp4_encrypted(&probe)).await.unwrap_or(false) {
+        let _ = std::fs::remove_file(&actual);
+        return Err(anyhow!("this video is DRM-protected (encrypted), so it can't be downloaded — a saved copy has no picture or sound; the file was removed"));
+    }
     let expected = shared.expected_duration.load(Ordering::SeqCst);
     let audio = shared.expects_audio.load(Ordering::SeqCst);
     if expected == 0 && !audio { return Ok(()); }
@@ -6236,8 +6281,6 @@ async fn verify_completed_media(dest: &std::path::Path, shared: &Arc<SharedState
         shared.set_note("finished media could not be checked for duration/audio: ffprobe was not found".to_string());
         return Ok(());
     };
-    let resolved = mutex_guard(&shared.resolved_name).clone();
-    let actual = resolved.map(|name| dest.with_file_name(name)).unwrap_or_else(|| dest.to_path_buf());
     let mut cmd = tokio::process::Command::new(exe);
     cmd.kill_on_drop(true);
     #[cfg(windows)]
@@ -6249,6 +6292,71 @@ async fn verify_completed_media(dest: &std::path::Path, shared: &Arc<SharedState
         .map_err(|_| anyhow!("finished media verification timed out"))??;
     if !out.status.success() { return Err(anyhow!("could not inspect the finished media file")); }
     completed_media_check(&String::from_utf8_lossy(&out.stdout), expected, audio)
+}
+
+/// True when an MP4/M4A/fragmented-MP4 file's tracks are encrypted (CENC:
+/// `encv`/`enca`/`encs`/`enct` sample entries in `moov`). Only the box tree is
+/// walked, never the media bytes, so a chance byte pattern in `mdat` cannot
+/// trip it. Anything that is not ISO-BMFF is "not encrypted".
+fn mp4_encrypted(path: &std::path::Path) -> bool {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(path) else { return false };
+    let Ok(len) = f.metadata().map(|m| m.len()) else { return false };
+    let mut pos = 0u64;
+    let mut first = true;
+    while pos + 8 <= len {
+        let mut h = [0u8; 16];
+        if f.seek(SeekFrom::Start(pos)).is_err() || f.read_exact(&mut h[..8]).is_err() { return false; }
+        let kind = [h[4], h[5], h[6], h[7]];
+        let (size, head) = match u32::from_be_bytes([h[0], h[1], h[2], h[3]]) {
+            0 => (len - pos, 8u64),
+            1 => {
+                if f.read_exact(&mut h[8..16]).is_err() { return false; }
+                (u64::from_be_bytes([h[8], h[9], h[10], h[11], h[12], h[13], h[14], h[15]]), 16)
+            }
+            n => (n as u64, 8),
+        };
+        if size < head || pos + size > len {
+            return false;
+        }
+        if first {
+            // An ISO-BMFF file opens with one of these; anything else is not one.
+            if !matches!(&kind, b"ftyp" | b"styp" | b"moov" | b"free" | b"skip" | b"wide") { return false; }
+            first = false;
+        }
+        if &kind == b"moov" {
+            let n = (size - head).min(64 << 20) as usize;
+            let mut body = vec![0u8; n];
+            if f.read_exact(&mut body).is_err() { return false; }
+            return iso_boxes_encrypted(&body, 0);
+        }
+        pos += size;
+    }
+    false
+}
+
+fn iso_boxes_encrypted(data: &[u8], depth: u32) -> bool {
+    if depth > 8 { return false; }
+    let mut i = 0usize;
+    while i + 8 <= data.len() {
+        let size = u32::from_be_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]) as usize;
+        let kind = &data[i + 4..i + 8];
+        if size < 8 || i + size > data.len() { return false; }
+        let body = &data[i + 8..i + size];
+        match kind {
+            b"encv" | b"enca" | b"encs" | b"enct" => return true,
+            b"trak" | b"mdia" | b"minf" | b"stbl" => {
+                if iso_boxes_encrypted(body, depth + 1) { return true; }
+            }
+            // Sample descriptions: version/flags + entry count, then entries.
+            b"stsd" if body.len() > 8 => {
+                if iso_boxes_encrypted(&body[8..], depth + 1) { return true; }
+            }
+            _ => {}
+        }
+        i += size;
+    }
+    false
 }
 
 fn ffprobe_has_audio(json: &str) -> Result<bool> {
@@ -9196,6 +9304,35 @@ mod tests {
         let sound = r#"{"format":{"duration":"2699.5"},"streams":[{"codec_type":"video"},{"codec_type":"audio"}]}"#;
         assert!(completed_media_check(sound, 2700, true).is_ok());
         assert!(completed_media_check(r#"{"streams":[]}"#, 2700, false).is_err());
+    }
+
+    #[test]
+    fn encrypted_mp4_tracks_are_detected_from_the_box_tree() {
+        fn bx(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+            let mut v = ((body.len() + 8) as u32).to_be_bytes().to_vec();
+            v.extend_from_slice(kind);
+            v.extend_from_slice(body);
+            v
+        }
+        let file = |entry: &[u8; 4], mdat: &[u8]| {
+            let mut stsd = vec![0u8; 8];
+            stsd[7] = 1;
+            stsd.extend(bx(entry, &[0u8; 16]));
+            let moov = bx(b"moov", &bx(b"trak", &bx(b"mdia", &bx(b"minf", &bx(b"stbl", &bx(b"stsd", &stsd))))));
+            let mut v = bx(b"ftyp", b"isom    ");
+            v.extend(moov);
+            v.extend(bx(b"mdat", mdat));
+            v
+        };
+        let dir = std::env::temp_dir().join(format!("dc-drm-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let write = |name: &str, bytes: Vec<u8>| { let p = dir.join(name); std::fs::write(&p, bytes).unwrap(); p };
+        assert!(mp4_encrypted(&write("enc.mp4", file(b"encv", b"x"))));
+        assert!(mp4_encrypted(&write("enca.m4a", file(b"enca", b"x"))));
+        // Clear tracks, even with "encv" bytes inside the media data.
+        assert!(!mp4_encrypted(&write("clear.mp4", file(b"avc1", b"..encv..enca.."))));
+        assert!(!mp4_encrypted(&write("text.txt", b"encv encv encv".to_vec())));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

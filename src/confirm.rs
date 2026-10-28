@@ -585,6 +585,15 @@ impl ConfirmApp {
     /// Queue the download. `start` = also wake the main app to begin it now
     /// (IDM "Start Download") vs merely queueing ("Download Later").
     fn commit(&mut self, start: bool) {
+        // Download needs the main app, which owns the engine. When it is not
+        // running, say so and queue nothing: a queued-and-woken row used to
+        // sit silently and then start, with every other one like it, the next
+        // time the app opened. The dialog stays open, so Download works once
+        // the app is started.
+        if start && !main_app_running() {
+            self.notice = crate::i18n::t("Download Craft isn't running — open it, then click Download again.").to_string();
+            return;
+        }
         if self.filename.trim().is_empty() {
             self.filename = filename_from_url(&self.url);
         }

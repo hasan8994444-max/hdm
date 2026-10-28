@@ -349,6 +349,14 @@ pub fn apply_theme(ctx: &egui::Context, theme: &str) {
 /// Theme key as saved in `ui.json`. For the windows that live in their own
 /// process (settings, basket, confirm, progress, complete) — the main app
 /// warns them through the shared config file.
+/// When this window opened (Unix seconds, fixed on first use, which is the
+/// first poll right after start-up). Browser captures and start requests
+/// older than this were made while the app was closed.
+fn app_opened_at() -> i64 {
+    static AT: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
+    *AT.get_or_init(|| chrono::Local::now().timestamp())
+}
+
 pub fn stored_theme() -> String {
     config_dir()
         .map(|d| d.join("ui.json"))
@@ -2218,6 +2226,12 @@ pub struct CraftApp {
     /// when the downloads are done".
     selfupd_rx: Option<std::sync::mpsc::Receiver<SelfUpdMsg>>,
     update_restart_ready: bool,
+    /// The running self-update was started by the app itself (a newer
+    /// release found at start-up), not by "Update now".
+    update_auto: bool,
+    /// First-run helper fetch (yt-dlp, ffmpeg, Deno): its log lines.
+    helpers_rx: Option<std::sync::mpsc::Receiver<Vec<String>>>,
+    helpers_started: bool,
     /// A newer release exists: only then does the title bar show its update
     /// chip. (An asset URL can be missing while an update still exists.)
     update_found: bool,
@@ -2287,6 +2301,7 @@ pub struct CraftApp {
 
 impl CraftApp {
     pub fn new(rt: Arc<tokio::runtime::Runtime>) -> Self {
+        let _ = app_opened_at(); // pin "opened" to start-up
         let dl_dir = dirs::download_dir()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| crate::model::default_download_dir().to_string_lossy().into_owned());
@@ -2422,6 +2437,9 @@ impl CraftApp {
             update_asset: None,
             selfupd_rx: None,
             update_restart_ready: false,
+            update_auto: false,
+            helpers_rx: None,
+            helpers_started: false,
             update_found: false,
             update_auto_done: false,
             speed_hist: std::collections::HashMap::new(),
@@ -3864,6 +3882,8 @@ impl CraftApp {
                     self.push_log(format!("Update installed ({n} files)."));
                     self.update_restart_ready = true;
                     if self.tasks.is_empty() {
+                        self.update_auto = false;
+                        notify("Download Craft updated", "Restarting into the new version…");
                         self.restart_for_update();
                     } else {
                         self.update_status = format!(
@@ -3876,8 +3896,14 @@ impl CraftApp {
                     self.selfupd_rx = None;
                     self.update_busy = false;
                     self.push_log(format!("Update failed: {e}"));
-                    self.update_status = format!("Update failed ({e}). Nothing was changed; the update zip is downloading instead.");
-                    self.download_update_asset();
+                    if std::mem::take(&mut self.update_auto) {
+                        // Automatic attempt: nothing changed; the Update button
+                        // stays for a retry (no zip dropped in Downloads).
+                        self.update_status = format!("Update failed ({e}). Nothing was changed — click Update to try again.");
+                    } else {
+                        self.update_status = format!("Update failed ({e}). Nothing was changed; the update zip is downloading instead.");
+                        self.download_update_asset();
+                    }
                 }
             }
         }
@@ -5307,6 +5333,7 @@ impl CraftApp {
     fn poll_inbox(&mut self) -> bool {
         const MAX_INBOX: usize = 200;
         const CONFIRM_GRACE_SECS: i64 = 10;
+        let opened_at = app_opened_at();
         let path = match crate::native_host::inbox_path() {
             Some(p) => p,
             None => return false,
@@ -5351,6 +5378,24 @@ impl CraftApp {
             drop(_guard);
             self.apply_refreshed_link(w.id, fresh);
             return false;
+        }
+        // Captures sent while the app was closed are dropped, not prompted
+        // one after another (or started) the moment it opens: the capture
+        // dialog already told the user the app was not running.
+        let before = items.len();
+        let items: Vec<crate::native_host::InboxItem> = items
+            .into_iter()
+            .filter(|i| {
+                chrono::DateTime::parse_from_rfc3339(&i.received_at)
+                    .map(|dt| dt.timestamp() >= opened_at)
+                    .unwrap_or(false)
+            })
+            .collect();
+        if items.len() < before {
+            self.push_log(format!(
+                "Ignored {} browser capture(s) sent while Download Craft was closed.",
+                before - items.len()
+            ));
         }
         let mut keep: Vec<crate::native_host::InboxItem> = Vec::new();
         let mut next: Option<crate::native_host::InboxItem> = None;
@@ -5529,7 +5574,16 @@ impl CraftApp {
             Ok(d) => d,
             Err(_) => return,
         };
+        // A start request left from before this window opened (a dialog whose
+        // app launch never came up) is dropped, not acted on now.
+        let stale = std::fs::metadata(&path)
+            .and_then(|m| m.modified())
+            .map(|t| chrono::DateTime::<chrono::Local>::from(t).timestamp() < app_opened_at())
+            .unwrap_or(false);
         let _ = std::fs::remove_file(&path); // claim first: at-most-once
+        if stale {
+            return;
+        }
         let ids: Vec<u64> = serde_json::from_str::<serde_json::Value>(&data)
             .ok()
             .and_then(|v| v.get("start").cloned())
@@ -6059,6 +6113,29 @@ impl eframe::App for CraftApp {
                 self.start_update_check();
             }
             self.poll_self_update();
+            // Missing helpers are fetched in the background right after the
+            // first start, so a new user's first video download just works.
+            if !self.helpers_started {
+                self.helpers_started = true;
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.helpers_rx = Some(rx);
+                self.rt.spawn(async move {
+                    let _ = tx.send(crate::engine::prepare_helpers().await);
+                });
+            }
+            if let Some(lines) = self.helpers_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+                self.helpers_rx = None;
+                for l in lines {
+                    self.push_log(l);
+                }
+            }
+            // Installed while downloads were running: restart as soon as the
+            // last one stops (an interrupted one resumes after the restart).
+            if self.update_restart_ready && self.update_auto && self.tasks.is_empty() {
+                self.update_auto = false;
+                notify("Download Craft updated", "Restarting into the new version…");
+                self.restart_for_update();
+            }
             if let Some(rx) = self.update_rx.as_ref() {
                 let mut got = None;
                 while let Ok(m) = rx.try_recv() {
@@ -6071,6 +6148,15 @@ impl eframe::App for CraftApp {
                     self.update_found = found;
                     if m.starts_with("Update available") {
                         self.push_log(m);
+                    }
+                    // A portable copy updates itself: download, check, replace
+                    // every file in its folder, then restart into the new
+                    // version once no download is running.
+                    let portable = cfg!(windows) && crate::selfupdate::portable_dir().is_some();
+                    if found && portable && self.update_asset.is_some() && self.selfupd_rx.is_none() {
+                        self.push_log("Installing the update in the background…");
+                        self.update_auto = true;
+                        self.start_self_update();
                     }
                 }
             }
@@ -9528,7 +9614,10 @@ impl CraftApp {
                 }
             }
             ButtonId::UpdCheck => self.start_update_check(),
-            ButtonId::UpdDownload => self.start_self_update(),
+            ButtonId::UpdDownload => {
+                self.update_auto = false;
+                self.start_self_update();
+            }
             ButtonId::UpdRestart => self.restart_for_update(),
             ButtonId::QStart => self.start_queue(),
             ButtonId::QStop => self.stop_queue(),

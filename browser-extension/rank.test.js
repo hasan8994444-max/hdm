@@ -267,3 +267,43 @@ describe("Facebook quality order", () => {
     assert.equal(v.video[0].codecs, "avc1.64001F");
   });
 });
+
+describe("mp4Info", () => {
+  const box = (t, body) => {
+    const out = new Uint8Array(8 + body.length);
+    const n = out.length;
+    out.set([n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255], 0);
+    out.set([...t].map((c) => c.charCodeAt(0)), 4);
+    out.set(body, 8);
+    return out;
+  };
+  const cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+  const tkhd = (w, h) => { const b = new Uint8Array(84); b.set([w >>> 8, w & 255, 0, 0, h >>> 8, h & 255, 0, 0], 76); return box("tkhd", b); };
+  const hdlr = (k) => { const b = new Uint8Array(24); b.set([...k].map((c) => c.charCodeAt(0)), 8); return box("hdlr", b); };
+  const stsd = (entry) => box("stsd", cat(new Uint8Array([0, 0, 0, 0, 0, 0, 0, 1]), box(entry, new Uint8Array(8))));
+  const trak = (w, h, kind, entry) => box("trak", cat(tkhd(w, h), box("mdia", cat(hdlr(kind), box("minf", box("stbl", stsd(entry)))))));
+  const file = (moov, mdatFirst) => {
+    const ftyp = box("ftyp", new Uint8Array([105, 115, 111, 109, 0, 0, 0, 0]));
+    const mdat = box("mdat", new Uint8Array(32));
+    return mdatFirst ? cat(ftyp, mdat, moov) : cat(ftyp, moov, mdat);
+  };
+  it("reads the video track's size, not the audio track's", () => {
+    const moov = box("moov", cat(trak(0, 0, "soun", "mp4a"), trak(1920, 1080, "vide", "avc1")));
+    assert.deepEqual(DCRank.mp4Info(file(moov)), { w: 1920, h: 1080, drm: false });
+  });
+  it("flags encrypted (DRM) tracks", () => {
+    const moov = box("moov", trak(1280, 720, "vide", "encv"));
+    assert.deepEqual(DCRank.mp4Info(file(moov)), { w: 1280, h: 720, drm: true });
+  });
+  it("points at a moov stored after the media data", () => {
+    const moov = box("moov", trak(640, 360, "vide", "avc1"));
+    const whole = file(moov, true);
+    const head = whole.slice(0, 16 + 8); // ftyp + the mdat header only
+    const r = DCRank.mp4Info(head);
+    assert.equal(r.moovAt, 16 + 40);
+    assert.deepEqual(DCRank.mp4Info(whole.slice(r.moovAt), r.moovAt), { w: 640, h: 360, drm: false });
+  });
+  it("ignores what is not an MP4", () => {
+    assert.equal(DCRank.mp4Info(new TextEncoder().encode("<html>encv</html>")), null);
+  });
+});

@@ -306,9 +306,20 @@ function card(item, mode) {
   dl.title = inBrowser ? "Download in this browser — no app needed"
     : viaApp ? "YouTube only lets the app download it — hands this quality to Download Craft"
     : "Download with Download Craft";
+  // DRM files are listed (so it is clear why) but never downloaded: their
+  // bytes are encrypted and a saved copy has no picture or sound.
+  const drmBlock = () => {
+    const o = options[Number(sel.value)] || {};
+    dl.disabled = !!o.drm;
+    dl.style.opacity = o.drm ? ".45" : "";
+    dl.style.cursor = o.drm ? "not-allowed" : "";
+    if (o.drm) dl.title = "DRM-protected — this video can't be downloaded (a saved copy would have no picture or sound)";
+    tag.textContent = o.drm ? "DRM" : (item.tag || "VIDEO");
+  };
+  sel.addEventListener("change", drmBlock);
   dl.onclick = () => {
     const o = options[Number(sel.value)];
-    if (!o) return;
+    if (!o || o.drm) return;
     if (inBrowser) sendBrowser({ ...o.browser, title: item.title, pageUrl: item.page });
     else send(o.msg);
   };
@@ -340,6 +351,7 @@ function card(item, mode) {
   }
   el.append(th, body);
   showSize();
+  drmBlock();
   return el;
 }
 
@@ -463,6 +475,9 @@ function collectItems(peek, pageUrl) {
     .map((n) => ({ ...n, _score: R ? R.scoreMedia(n, { hasPlaylist }) : 0 }))
     .filter((n) => n._score >= 0)
     .sort((a, b) => b._score - a._score);
+  // Video files of one page (a player's 1080p, 720p, 480p…) are one card
+  // with a quality list, labelled by the resolution read from each file.
+  const qualityCards = new Map();
   for (const n of netItems) {
     const kind = R ? R.kindOf(n) : "file";
     const isStream = kind === "playlist";
@@ -470,6 +485,28 @@ function collectItems(peek, pageUrl) {
     const tag = isSub ? "SUBS" : kind === "segment" ? "PART" : tagOf(n.url, n.mime);
     const name = isStream || isSub ? undefined : safeName(pageTitle || "video", /^audio\//i.test(n.mime || "") ? ".m4a" : ".mp4");
     const streamName = safeName(pageTitle || "video", ".mp4");
+    if (kind === "file" && tag !== "AUDIO" && !/^audio\//i.test(n.mime || "")) {
+      const key = `${pageUrl}|${pageTitle}`;
+      let card = qualityCards.get(key);
+      if (!card) {
+        card = { key: `net:${n.url}`, kind: "videos", title: pageTitle || "Video", thumb: n.thumb, dur: n.dur, tag, link: n.url, page: pageUrl, options: [] };
+        qualityCards.set(key, card);
+        items.push(card);
+      }
+      if (!card.thumb && n.thumb) card.thumb = n.thumb;
+      if (!card.dur && n.dur) card.dur = n.dur;
+      if (n.drm) card.drm = true;
+      const res = n.h > 0 ? `${n.h}p` : "";
+      card.options.push({
+        h: n.h || 0,
+        label: [res, tag].filter(Boolean).join(" · ") + (n.pairUrl ? " + audio" : "") + (n.drm ? " · DRM" : ""),
+        size: n.size || 0, url: n.url, pairUrl: n.pairUrl || undefined, drm: !!n.drm,
+        browser: browserJob(n.url, res ? name.replace(/\.mp4$/i, ` [${res}].mp4`) : name, { mime: n.mime || "", pairUrl: n.pairUrl || undefined }),
+        msg: { type: "download", url: n.url, filename: res ? name.replace(/\.mp4$/i, ` [${res}].mp4`) : name, pageUrl: pageUrl || undefined, pairUrl: n.pairUrl || undefined, pairMime: n.pairMime || undefined, dur: n.dur || undefined },
+      });
+      card.options.sort((a, b) => (b.h - a.h) || (b.size - a.size));
+      continue;
+    }
     items.push({
       key: `net:${n.url}`,
       kind: isStream ? "streams" : isSub || kind === "segment" ? "other" : "videos",

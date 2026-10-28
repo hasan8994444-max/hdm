@@ -20,6 +20,9 @@
   "barChooseQuality": {
     "message": "Choose video quality in Download Craft"
   },
+  "drmProtected": {
+    "message": "This video is DRM-protected, so it can't be downloaded: a saved copy would have no picture or sound. Watch it on the site instead."
+  },
   "barDownloadVideo": {
     "message": "Download this video with Download Craft"
   },

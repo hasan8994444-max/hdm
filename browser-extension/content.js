@@ -7,7 +7,7 @@
   // Must match manifest version + background.js EXT_VER. The background
   // rejects messages from any other version with a "reload this tab"
   // error, so a stale script can never fail mysteriously.
-  const EXT_VER = "0.9.10";
+  const EXT_VER = "0.9.11";
   // Promise-style calls (the `await api.*` one below) go through this handle
   // so one file serves both engines: Firefox exposes the promise-returning
   // `browser` namespace, Chrome only has `chrome` (promise-capable under MV3).
@@ -1311,6 +1311,21 @@
     return pool.slice().sort((a, b) => score(b) - score(a))[0];
   }
 
+  // DRM (Widevine / PlayReady / FairPlay through the browser's Encrypted
+  // Media Extensions): the page decrypts inside the browser's protected
+  // pipeline, so the stream's bytes are encrypted and a saved copy never
+  // plays. Such videos are reported, never downloaded — the protection is
+  // the rights holder's and is not worked around.
+  const drmVideos = new WeakSet();
+  try {
+    // "encrypted" does not bubble, but a capture listener still sees it.
+    document.addEventListener("encrypted", (e) => { if (e.target && e.target.tagName === "VIDEO") drmVideos.add(e.target); }, true);
+  } catch (e) { /* no EME in this browser */ }
+  function drmProtected(v) {
+    try { return !!v && (drmVideos.has(v) || !!v.mediaKeys); } catch (e) { return false; }
+  }
+  const DRM_NOTE = "This video is DRM-protected, so it can't be downloaded: a saved copy would have no picture or sound. Watch it on the site instead.";
+
   // Small on-page error toast (failures are otherwise silent).
   function toast(text) {
     let el = document.getElementById("dc-yt-toast");
@@ -2239,6 +2254,8 @@
       selected = it || null;
       if (selected && selected.el) selected.el.setAttribute("data-dc-sel", "1");
       paintDcPanel(panel);
+      // The bar that opened this menu names the quality now selected.
+      if (api.bar && selected && selected.q) barShowQuality(api.bar, selected.q.short || selected.q.res);
     }
     function sync() {
       badge.textContent = items.length === 1 ? "1 quality" : `${items.length} qualities`;
@@ -2252,6 +2269,7 @@
       panel,
       grid,
       items,
+      bar: null, // the button this menu belongs to (relabelled on a pick)
       select,
       selected: () => selected,
       addQuality: (q) => {
@@ -2745,11 +2763,19 @@
         res: e.res,
         size: e.size > 0 ? (e.approx ? "~" : "") + fmtSize(e.size) : "",
         tip: e.tip,
+        short: e.h > 0 ? e.h + "p" : "",
         send: () => { rememberQuality(e.h + "p"); e.send(); },
         onPick: () => api.setInfo(infoOf(e)),
       });
       if (e.st) sizePairs.push({ item: it, sizeEl: it.sizeEl, st: e.st });
     });
+    // Opens on the remembered quality (the nearest at or below it), and from
+    // here on a pick relabels the button.
+    if (oneClickOn && prefQuality && prefQuality !== "audio" && typeof DCRank !== "undefined" && DCRank.pickHeight) {
+      const qi = DCRank.pickHeight(entries.map((e) => e.h), prefQuality);
+      if (qi >= 0 && api.items[qi]) { api.select(api.items[qi]); api.setInfo(infoOf(entries[qi])); }
+    }
+    api.bar = btn;
     // "Other Files": subtitle tracks and audio-only streams as chips.
     for (const sb of (info.subs || [])) {
       api.addChip({
@@ -2804,7 +2830,6 @@
       ev.stopPropagation();
       if (btn.__dcBusy) return;
       if (api.panel.style.display !== "none") { api.hide(); return; }
-      if (!clickedMore(ev, btn) && btn.__dcQuick) { btn.__dcQuick.run(); return; }
       if (ready) { open(); return; }
       ytOpenWhenReady = info.videoId;
       barBusy(btn, dcT("busyResolving", "Resolving…"));
@@ -2956,6 +2981,7 @@
         pill.style.zIndex = "2147483646";
         pill.onclick = (ev) => {
           ev.stopPropagation(); ev.preventDefault();
+          if (drmProtected(v)) { toast(dcT("drmProtected", DRM_NOTE)); return; }
           // Facebook reels: open the IDM-style quality menu (title + HD/SD
           // rows with sizes) instead of firing one mystery download — the
           // player only holds a blob: URL and every reel needs no reload.
@@ -2968,8 +2994,7 @@
             layoutCheck("social-post-" + location.hostname, !post,
               `${location.hostname}: no post link found next to a video (the site's layout may have changed); the page was sent instead`, 0);
             if (post) {
-              if (!clickedMore(ev, pill) && pill.__dcQuick) pill.__dcQuick.run();
-              else openSocialMenu(pill, post, v);
+              openSocialMenu(pill, post, v);
               return;
             }
           }
@@ -3024,10 +3049,10 @@
     } catch (e) { /* ignore */ }
   }
 
-  // ---------- Remembered quality: one click ----------
-  // The quality picked last ("720p", or "audio") is what the button
-  // downloads in one click; its ▾ opens the menu for anything else.
-  // Popup → Settings switches this off.
+  // ---------- Remembered quality ----------
+  // The quality picked last ("720p", or "audio") is what the button shows
+  // and what its menu has selected when it opens; picking another one in the
+  // menu relabels the button at once. Popup → Settings switches this off.
   let prefQuality = "";
   let oneClickOn = true;
   function rememberQuality(q) {
@@ -3066,7 +3091,18 @@
         host.__dcIdleText = undefined;
         host.__dcW = 0;
       }
-      if (host.__dcMore) host.__dcMore.hidden = !q;
+      // One control: the button opens the menu (pre-set to this quality),
+      // so the separate ▾ stays hidden.
+      if (host.__dcMore) host.__dcMore.hidden = true;
+    } catch (e) { /* cosmetic */ }
+  }
+  // "Download 720p" on a bar while its menu has 720p selected.
+  function barShowQuality(host, q) {
+    try {
+      const lab = host && host.__dcLabel;
+      if (!lab || host.__dcBusy || !q) return;
+      const text = `${dcT("barDownload", "Download")} ${q}`;
+      if (lab.textContent !== text) { lab.textContent = text; host.__dcIdleText = undefined; host.__dcW = 0; }
     } catch (e) { /* cosmetic */ }
   }
   // Was the click on the bar's ▾ (open the menu) rather than the button?
@@ -3177,6 +3213,7 @@
       const it = api.addQuality({ format: "MP4", res, size: "", tip: `${res} · MP4`, send: () => pick(q), onPick: () => api.setInfo({ res, size: "", format: "MP4" }) });
       if (q === prefQuality) { api.select(it); api.setInfo({ res, size: "", format: "MP4" }); }
     }
+    api.bar = pill;
     api.addChip({ label: "♪ MP3", tip: dcT("chipAudioOnly", "Audio only, as MP3"), send: () => pick("audio") });
     installDcCloser();
     api.show();
@@ -3227,6 +3264,7 @@
       const it = api.addQuality({ ...q, onPick: () => api.setInfo(q) });
       sizePairs.push({ item: it, sizeEl: it.sizeEl, st });
     });
+    api.bar = pill;
     // "Other Files": audio-only streams the sniffer saw in this session.
     for (const a of (audio || [])) {
       const base = String(fname).replace(/\.mp4$/i, "");
@@ -3359,6 +3397,7 @@
   function downloadContextVideo() {
     const v = (lastCtxVideo && lastCtxVideo.isConnected) ? lastCtxVideo : biggestVideo();
     lastCtxVideo = null;
+    if (drmProtected(v)) { toast(dcT("drmProtected", DRM_NOTE)); return; }
     if (ytVideoId() && (!v || (v.closest && v.closest(".html5-video-player")))) {
       refreshYouTube();
       const b = document.getElementById("dc-yt-btn");
