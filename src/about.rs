@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 const AW: f32 = 520.0;
 /// Opening height; the window then fits itself to its content.
 const AH: f32 = 560.0;
-const REPO: &str = "https://github.com/HASAN-USERNAME/hdm";
+const REPO: &str = "https://github.com/hasan8994444-max/hdm";
 /// Upstream project HDM is based on (MIT) — credit stays visible in About.
 const UPSTREAM: &str = "https://github.com/hungry-detective/downloadcraft";
 

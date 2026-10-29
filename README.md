@@ -31,7 +31,7 @@ https://github.com/user-attachments/assets/acd6afd0-926c-4e11-a718-3edf42c4f7c6
 - **The video button** says just "Download", opens on your usual quality, stays inside the player
   and hides under a site's pinned header.
 
-Full notes: [Release 0.9.12](https://github.com/HASAN-USERNAME/hdm/releases/tag/v0.9.12).
+Full notes: [Release 0.9.12](https://github.com/hasan8994444-max/hdm/releases/tag/v0.9.12).
 
 ---
 

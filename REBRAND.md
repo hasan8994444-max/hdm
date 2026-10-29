@@ -25,9 +25,9 @@ Rebranded 2026-10-29 from the open-source project **DownloadCraft**
   receiving site rules (the file is data, not branding).
 
 ## Before publishing to GitHub (one step only Hasan can do)
-The code contains the placeholder `HASAN-USERNAME` in GitHub URLs
+The code contains the placeholder `hasan8994444-max` in GitHub URLs
 (README badges, About links, update check). Replace it with Hasan's real
 GitHub username in all files, e.g.:
-`grep -rl HASAN-USERNAME . | xargs sed -i 's/HASAN-USERNAME/<username>/g'`
+`grep -rl hasan8994444-max . | xargs sed -i 's/hasan8994444-max/<username>/g'`
 Until then the in-app update check simply reports that it cannot reach
 releases — everything else works fully offline.

@@ -1,6 +1,6 @@
 # hdm-engine
 
-The download engine behind [HDM](https://github.com/HASAN-USERNAME/hdm), as a
+The download engine behind [HDM](https://github.com/hasan8994444-max/hdm), as a
 standalone Rust crate you can drop into your own downloader. MIT licensed, async (`tokio` +
 `reqwest`).
 
@@ -39,7 +39,7 @@ quarter alone.
 
 ```toml
 [dependencies]
-hdm-engine = { git = "https://github.com/HASAN-USERNAME/hdm" }
+hdm-engine = { git = "https://github.com/hasan8994444-max/hdm" }
 tokio = { version = "1", features = ["full"] }
 reqwest = "0.12"
 ```

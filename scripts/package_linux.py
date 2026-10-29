@@ -59,7 +59,7 @@ Section: net
 Priority: optional
 Architecture: amd64
 Maintainer: HDM contributors <noreply@hdm.local>
-Homepage: https://github.com/HASAN-USERNAME/hdm
+Homepage: https://github.com/hasan8994444-max/hdm
 Depends: libc6 (>= 2.28), libgcc-s1, libx11-6, libxcb1, libxkbcommon0, libgl1, libwayland-client0, xdg-utils
 Recommends: libglib2.0-bin
 Description: HDM desktop download manager
@@ -76,7 +76,7 @@ Version: {VERSION}
 Release: 1
 Summary: Desktop download manager with browser capture
 License: MIT AND OFL-1.1
-URL: https://github.com/HASAN-USERNAME/hdm
+URL: https://github.com/hasan8994444-max/hdm
 BuildArch: x86_64
 AutoReqProv: no
 Requires: glibc >= 2.28, libgcc, libX11, libxcb, libxkbcommon, mesa-libGL, wayland-libs, xdg-utils

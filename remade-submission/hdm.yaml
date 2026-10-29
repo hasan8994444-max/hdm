@@ -13,11 +13,11 @@
   aliases: [IDM]
 
 # 2) Project file to create at:
-# apps/frontend/remade-wiki/src/content/catalog/projects/HASAN-USERNAME/hdm.yaml
+# apps/frontend/remade-wiki/src/content/catalog/projects/hasan8994444-max/hdm.yaml
 
 slug: hdm
 name: HDM
-repository: https://github.com/HASAN-USERNAME/hdm
+repository: https://github.com/hasan8994444-max/hdm
 originals: [internet-download-manager]
 category: productivity
 languages:

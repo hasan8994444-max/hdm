@@ -5969,7 +5969,7 @@ async fn update_check_async() -> (String, Option<crate::selfupdate::Asset>, bool
     let api = std::env::var("HDM_UPDATE_API")
         .ok()
         .filter(|u| !u.trim().is_empty())
-        .unwrap_or_else(|| "https://api.github.com/repos/HASAN-USERNAME/hdm/releases/latest".to_string());
+        .unwrap_or_else(|| "https://api.github.com/repos/hasan8994444-max/hdm/releases/latest".to_string());
     let resp = client
         .get(api)
         .header("Accept", "application/vnd.github+json")
@@ -5996,7 +5996,7 @@ async fn update_check_async() -> (String, Option<crate::selfupdate::Asset>, bool
         let url = v
             .get("html_url")
             .and_then(|u| u.as_str())
-            .unwrap_or("https://github.com/HASAN-USERNAME/hdm/releases");
+            .unwrap_or("https://github.com/hasan8994444-max/hdm/releases");
         (
             format!("Update available: {tag} (you have v{current}) — {url}"),
             crate::selfupdate::pick_asset(&v),

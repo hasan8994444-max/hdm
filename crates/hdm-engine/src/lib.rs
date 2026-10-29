@@ -1,7 +1,7 @@
 //! # hdm-engine
 //!
 //! A multi-connection HTTP(S) download engine — the one inside
-//! [HDM](https://github.com/HASAN-USERNAME/hdm) — built
+//! [HDM](https://github.com/hasan8994444-max/hdm) — built
 //! on `tokio` and `reqwest`, free to use in your own downloader (MIT).
 //!
 //! What makes it fast and robust:
