@@ -23,6 +23,8 @@ mod model;
 mod native_host;
 mod progress;
 mod settings;
+mod setup;
+mod about;
 mod shaped;
 mod selfupdate;
 mod autostart;
@@ -93,6 +95,13 @@ fn main() -> eframe::Result<()> {
     if args.iter().any(|a| a == "--settings") {
         return settings::run();
     }
+    // "Get ready": what the app needs, with one-click fixes.
+    if args.iter().any(|a| a == "--about") {
+        return about::run();
+    }
+    if args.iter().any(|a| a == "--setup") {
+        return setup::run();
+    }
     if args.iter().any(|a| a == "--mini") {
         return basket::run_mini();
     }
@@ -152,7 +161,7 @@ fn main() -> eframe::Result<()> {
     // Site rules for the browser extension: newer ones from the project, at
     // most once a day, off the UI thread.
     std::thread::spawn(crate::native_host::refresh_site_rules);
-    eframe::run_native(
+    let result = eframe::run_native(
         crate::model::APP_NAME,
         options,
         Box::new(|cc| {
@@ -161,5 +170,7 @@ fn main() -> eframe::Result<()> {
 
             Ok(Box::new(CraftApp::new(rt.clone())))
         }),
-    )
+    );
+    crate::model::clear_heartbeat();
+    result
 }

@@ -380,6 +380,37 @@ async fn stopped_downloads_resume_where_they_were() {
 }
 
 #[tokio::test]
+async fn a_partial_moved_to_a_new_name_resumes_there() {
+    // The capture dialog starts a download under a temporary name and hands
+    // its data over to the name the user picks: the journal is keyed by the
+    // URL, so the moved data resumes.
+    let srv = Server::start(Behaviour { size: 6 * MIB, rate: 1024 * 1024, ..Default::default() }).await;
+    let first = tmp("pre-start");
+    let dest = tmp("pre-final");
+    let dl = Downloader::new(reqwest::Client::new()).config(quick());
+    let control = Arc::new(Control::default());
+    let progress = Arc::new(Progress::default());
+    let (c, pr) = (control.clone(), progress.clone());
+    tokio::spawn(async move {
+        while pr.downloaded() < 512 * 1024 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        c.cancel();
+    });
+    let job = Job::new(srv.url("/f"), &first).size_hint(Some(6 * MIB as u64), true);
+    assert!(matches!(dl.download(job, progress.clone(), control).await.unwrap_err(), Error::Cancelled));
+    for (a, b) in [
+        (downloadcraft_engine::data_path(&first), downloadcraft_engine::data_path(&dest)),
+        (downloadcraft_engine::journal_path(&first), downloadcraft_engine::journal_path(&dest)),
+    ] {
+        std::fs::rename(a, b).unwrap();
+    }
+    let out = get(&dl, Job::new(srv.url("/f"), &dest).size_hint(Some(6 * MIB as u64), true)).await.unwrap();
+    assert!(out.resumed > 0, "resumed {}", out.resumed);
+    assert_eq!(std::fs::read(&dest).unwrap(), body(6 * MIB, 1));
+}
+
+#[tokio::test]
 async fn a_changed_file_is_not_stitched_onto_old_bytes() {
     let srv = Server::start(Behaviour { size: 4 * MIB, rate: 1024 * 1024, ..Default::default() }).await;
     let dest = tmp("changed");

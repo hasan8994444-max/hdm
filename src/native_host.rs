@@ -866,6 +866,16 @@ fn spawn_confirm(msg: &Incoming) {
     spawn_detached(cmd);
 }
 
+/// The extension just talked to the app: the "Get ready" window shows it as
+/// connected from now on.
+fn note_extension_seen() {
+    if let Some(p) = crate::model::config_dir().map(|d| d.join("extension_seen.json")) {
+        let origin = std::env::args().find(|a| a.contains("-extension://")).unwrap_or_default();
+        let v = serde_json::json!({ "at": chrono::Local::now().to_rfc3339(), "origin": origin });
+        let _ = std::fs::write(p, v.to_string());
+    }
+}
+
 /// Entry point when launched with `--native-host`. Never returns normally.
 pub fn run() -> eframe::Result<()> {
     // Keep stderr quiet; any panic text would corrupt the pipe (stdout stays clean).
@@ -880,6 +890,7 @@ pub fn run() -> eframe::Result<()> {
             *CURRENT_RID.lock().unwrap_or_else(|e| e.into_inner()) = msg.rid;
             match msg.kind.as_str() {
             "hello" => {
+                note_extension_seen();
                 if !PUSHING.swap(true, std::sync::atomic::Ordering::SeqCst) {
                     std::thread::spawn(push_loop);
                 }
@@ -907,7 +918,7 @@ pub fn run() -> eframe::Result<()> {
                 }
                 write_message(&Reply::ok());
             }
-            "ping" => write_message(&Reply {
+            "ping" => write_message(&{ note_extension_seen(); Reply {
                 kind: "pong".into(),
                 version: Some(1),
                 queued: None,
@@ -915,7 +926,7 @@ pub fn run() -> eframe::Result<()> {
                 urls: None,
                 theme: Some(app_theme()),
                 items: None,
-            }),
+            } }),
             "query" => {
                 // Presence check only: no queueing, no dialogs, no locks held
                 // beyond the read.

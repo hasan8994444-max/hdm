@@ -148,6 +148,8 @@ fn save_remember_category(value: bool) {
     }
 }
 
+const NOT_RUNNING: &str = "Download Craft isn't running — open it, then click Download again.";
+
 /// True when the main window is already running (fresh heartbeat).
 /// Replaces process-name counting (two dialogs used to look "live").
 fn main_app_running() -> bool {
@@ -169,7 +171,18 @@ fn launch_main_app() {
     let _ = cmd.spawn();
 }
 
+/// The download the dialog starts while it is still open (IDM's way): by
+/// the time Download is pressed, part of the file is already there.
+struct PreStart {
+    shared: std::sync::Arc<engine::SharedState>,
+    handle: tokio::task::JoinHandle<anyhow::Result<()>>,
+    /// The temporary file it downloads to.
+    dest: std::path::PathBuf,
+}
+
 struct ConfirmApp {
+    pre: Option<PreStart>,
+    pre_tried: bool,
     url: String,
     filename: String,
     category: String,
@@ -482,6 +495,88 @@ impl ConfirmApp {
         v
     }
 
+    /// Start downloading in the background while the dialog is open, for a
+    /// plain file whose size is known (not a video page, a stream or an
+    /// audio/video pair: those the app assembles itself). Once only.
+    fn maybe_prestart(&mut self) {
+        if self.pre_tried || self.probing || self.done {
+            return;
+        }
+        let url = self.url.trim().to_string();
+        let plain = is_download_url(&url)
+            && self.pair_url.is_empty()
+            && self.quality_pref.trim().is_empty()
+            && !self.page_mime.contains("text/html")
+            && !engine::is_stream_manifest(&url, None, &self.page_mime)
+            && !url.contains("youtube.com")
+            && !url.contains("youtu.be");
+        if !plain || self.probe_size.unwrap_or(0) == 0 {
+            return;
+        }
+        self.pre_tried = true;
+        let Some(rt) = self.rt.clone() else { return };
+        let name = engine::sanitize_filename(if self.filename.trim().is_empty() { "download" } else { self.filename.trim() });
+        let dir = std::env::temp_dir().join("download-craft-pre").join(format!(
+            "{}-{}",
+            std::process::id(),
+            chrono::Local::now().timestamp_millis()
+        ));
+        if std::fs::create_dir_all(&dir).is_err() {
+            return;
+        }
+        let dest = dir.join(name);
+        let opts = EngineOpts {
+            user_agent: if self.user_agent.trim().is_empty() {
+                format!("download_craft/{}", crate::model::APP_VERSION)
+            } else {
+                self.user_agent.clone()
+            },
+            timeout_secs: self.timeout_secs,
+            proxy_url: self.proxy_url.clone(),
+            referer: self.referer.clone(),
+            cookie: self.cookie.clone(),
+            captured_headers: engine::CapturedHeaders::for_url(&url, &self.headers),
+            browser: self.browser.clone(),
+            allow_rename: false,
+            ..Default::default()
+        };
+        let shared = std::sync::Arc::new(engine::SharedState::new());
+        let s2 = shared.clone();
+        let d2 = dest.clone();
+        let conns = self.connections.max(1);
+        let handle = rt.spawn(async move { engine::download(url, d2, conns, opts, s2).await });
+        self.pre = Some(PreStart { shared, handle, dest });
+    }
+
+    /// Stop the background download. `keep_as`: continue it as this file
+    /// (its data is moved there; a file that already finished is moved
+    /// whole and the return says so). Without it everything is deleted.
+    fn stop_prestart(&mut self, keep_as: Option<&std::path::Path>) -> bool {
+        let Some(pre) = self.pre.take() else { return false };
+        pre.shared.cancelled.store(true, std::sync::atomic::Ordering::SeqCst);
+        let finished = pre.handle.is_finished() && engine::has_partial(&pre.dest) == false && pre.dest.is_file();
+        pre.handle.abort();
+        // Let the transfer write its journal and let go of the files.
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        let mut whole = false;
+        if let Some(to) = keep_as {
+            if finished && !to.exists() {
+                if let Some(dir) = to.parent() {
+                    let _ = std::fs::create_dir_all(dir);
+                }
+                whole = std::fs::rename(&pre.dest, to).is_ok()
+                    || (std::fs::copy(&pre.dest, to).is_ok() && std::fs::remove_file(&pre.dest).is_ok());
+            } else if !finished {
+                engine::move_partial(&pre.dest, to);
+            }
+        }
+        engine::remove_partial(&pre.dest);
+        if let Some(dir) = pre.dest.parent() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        whole
+    }
+
     fn start_probe(&mut self) {
         if !is_download_url(&self.url) {
             return;
@@ -591,7 +686,7 @@ impl ConfirmApp {
         // time the app opened. The dialog stays open, so Download works once
         // the app is started.
         if start && !main_app_running() {
-            self.notice = crate::i18n::t("Download Craft isn't running — open it, then click Download again.").to_string();
+            self.notice = crate::i18n::t(NOT_RUNNING).to_string();
             return;
         }
         if self.filename.trim().is_empty() {
@@ -620,6 +715,22 @@ impl ConfirmApp {
         item.quality_pref = self.quality_pref.trim().to_string();
         item.duration_secs = self.duration_secs;
         item.expects_audio = self.expects_audio;
+        // What the dialog already downloaded continues as this file. If it
+        // finished meanwhile, the file is listed as finished.
+        if self.pre.is_some() && !item.dest_path().exists() && !engine::has_partial(&item.dest_path()) {
+            let dest = item.dest_path();
+            if self.stop_prestart(Some(&dest)) {
+                let len = std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
+                item.total_bytes = Some(len);
+                item.downloaded_bytes = len;
+                let _ = crate::model::record_finished(&mut item);
+                save_remember_category(self.remember_path);
+                self.done = true;
+                return;
+            }
+        } else {
+            self.stop_prestart(None);
+        }
         let id = match crate::model::append_to_queue(&mut item) {
             crate::model::AppendResult::Added(id) => {
                 save_remember_category(self.remember_path);
@@ -634,9 +745,14 @@ impl ConfirmApp {
                 self.notice = match crate::model::queued_status(id) {
                     Some(Status::Completed) => format!("Already downloaded (#{id}) — see Finished."),
                     Some(Status::Downloading) => format!("Already downloading (#{id})."),
+                    // Download on a row that is waiting: start it and get out of
+                    // the way, like any other Download (the progress window
+                    // takes over). Only the cases with nothing to start stay
+                    // open to explain themselves.
                     _ if start => {
                         self.wake_targets(&[id]);
-                        format!("Already in the queue (#{id}) — starting it.")
+                        self.done = true;
+                        return;
                     }
                     _ => format!("Already in the queue (#{id})."),
                 };
@@ -808,6 +924,8 @@ pub fn run() -> eframe::Result<()> {
         timeout_secs: prefs.timeout_secs,
         rename_template: prefs.rename_template,
         folder_rules: prefs.folder_rules,
+        pre: None,
+        pre_tried: false,
         probing: false,
         probe_size: known_size,
         probe_rx: None,
@@ -871,7 +989,24 @@ impl eframe::App for ConfirmApp {
         }
         crate::fonts::ensure_text(ctx, &self.filename);
         crate::fonts::ensure_text(ctx, &self.description);
-        if self.done {
+        // Say up front when the app is not running (Download needs it), and
+        // drop the note by itself once the app is started.
+        let now = ctx.input(|i| i.time);
+        let last = ctx.data_mut(|d| *d.get_temp_mut_or_insert_with(egui::Id::new("run-check"), || -10.0f64));
+        if now - last >= 2.0 {
+            ctx.data_mut(|d| d.insert_temp(egui::Id::new("run-check"), now));
+            let note = crate::i18n::t(NOT_RUNNING).to_string();
+            let running = main_app_running();
+            if !running && self.notice.is_empty() {
+                self.notice = note;
+            } else if running && self.notice == note {
+                self.notice.clear();
+            }
+        }
+        ctx.request_repaint_after(std::time::Duration::from_secs(2));
+        if self.done || ctx.input(|i| i.viewport().close_requested()) {
+            self.stop_prestart(None);
+            self.done = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             if !self.exited {
                 self.exited = true;
@@ -882,6 +1017,7 @@ impl eframe::App for ConfirmApp {
             }
             return;
         }
+        self.maybe_prestart();
         // Middle of the work area (taskbar excluded), once the monitor
         // geometry is known; Windows would otherwise cascade the window.
         if !self.centered && crate::model::center_window(ctx, egui::vec2(DM_W, DM_H)) {
@@ -1381,6 +1517,7 @@ impl eframe::App for ConfirmApp {
                 self.commit(true);
             }
             if x_b.clicked() {
+                self.stop_prestart(None);
                 self.done = true;
             }
             // ---- notice (the window grew 16px for it) ----

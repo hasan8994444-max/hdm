@@ -485,3 +485,59 @@ impl Drop for HelperProcessTree {
         unsafe { windows_sys::Win32::Foundation::CloseHandle(self.job as *mut std::ffi::c_void); }
     }
 }
+
+/// Drag files out of the app, as Explorer does: dropped on Explorer, the
+/// desktop, a chat or a mail, they are copied there. Blocks until the drop
+/// (the system runs the drag), so call it while the mouse button is held.
+#[cfg(windows)]
+pub fn drag_files_out(files: &[PathBuf]) {
+    use windows_sys::Win32::System::Ole::{OleInitialize, DROPEFFECT_COPY, DROPEFFECT_LINK};
+    use windows_sys::Win32::UI::Shell::Common::ITEMIDLIST;
+    use windows_sys::Win32::UI::Shell::{ILFree, SHCreateDataObject, SHDoDragDrop, SHParseDisplayName};
+    // IID_IDataObject {0000010e-0000-0000-C000-000000000046}
+    const IID_IDATAOBJECT: windows_sys::core::GUID = windows_sys::core::GUID {
+        data1: 0x0000_010e,
+        data2: 0,
+        data3: 0,
+        data4: [0xC0, 0, 0, 0, 0, 0, 0, 0x46],
+    };
+    let hwnd = crate::tray::hwnd();
+    if files.is_empty() || hwnd == 0 {
+        return;
+    }
+    unsafe {
+        // Already set up by the window on this thread; harmless if so.
+        use std::os::windows::ffi::OsStrExt;
+        let _ = OleInitialize(std::ptr::null());
+        let mut pidls: Vec<*mut ITEMIDLIST> = Vec::new();
+        for f in files {
+            let wide: Vec<u16> = f.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+            let mut pidl: *mut ITEMIDLIST = std::ptr::null_mut();
+            if SHParseDisplayName(wide.as_ptr(), std::ptr::null_mut(), &mut pidl, 0, std::ptr::null_mut()) == 0 && !pidl.is_null() {
+                pidls.push(pidl);
+            }
+        }
+        if !pidls.is_empty() {
+            let list: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| *p as *const ITEMIDLIST).collect();
+            let mut data: *mut std::ffi::c_void = std::ptr::null_mut();
+            // Absolute item lists with no parent folder: the desktop's.
+            if SHCreateDataObject(std::ptr::null(), list.len() as u32, list.as_ptr(), std::ptr::null_mut(), &IID_IDATAOBJECT, &mut data) == 0
+                && !data.is_null()
+            {
+                let mut effect = 0u32;
+                // No drop source of our own: the shell supplies the standard one.
+                let _ = SHDoDragDrop(hwnd as _, data, std::ptr::null_mut(), DROPEFFECT_COPY | DROPEFFECT_LINK, &mut effect);
+                // IUnknown::Release is the third entry of the object's table.
+                let vtbl = *(data as *const *const usize);
+                let release: extern "system" fn(*mut std::ffi::c_void) -> u32 = std::mem::transmute(*vtbl.add(2));
+                release(data);
+            }
+        }
+        for p in pidls {
+            ILFree(p);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn drag_files_out(_files: &[PathBuf]) {}

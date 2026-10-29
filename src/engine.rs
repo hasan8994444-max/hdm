@@ -462,6 +462,36 @@ pub fn remove_partial(dest: &std::path::Path) {
     }
 }
 
+/// Move `from`'s unfinished data so it continues as `to` (the journal is
+/// keyed by the URL, not the path, so a resume picks it up under the new
+/// name). Data next to the file and in the temporary folder both move.
+/// Returns whether anything was moved.
+pub fn move_partial(from: &std::path::Path, to: &std::path::Path) -> bool {
+    let wd = work_dir();
+    let mut pairs = vec![
+        (downloadcraft_engine::data_path(from), downloadcraft_engine::data_path(to)),
+        (downloadcraft_engine::journal_path(from), downloadcraft_engine::journal_path(to)),
+    ];
+    if let Some(w) = wd.as_deref() {
+        pairs.push((downloadcraft_engine::data_path_in(from, Some(w)), downloadcraft_engine::data_path_in(to, Some(w))));
+        pairs.push((downloadcraft_engine::journal_path_in(from, Some(w)), downloadcraft_engine::journal_path_in(to, Some(w))));
+    }
+    let mut moved = false;
+    for (a, b) in pairs {
+        if !a.is_file() {
+            continue;
+        }
+        if let Some(dir) = b.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::remove_file(&b);
+        // A rename across drives fails: copy, then remove.
+        let ok = std::fs::rename(&a, &b).is_ok() || (std::fs::copy(&a, &b).is_ok() && std::fs::remove_file(&a).is_ok());
+        moved |= ok;
+    }
+    moved
+}
+
 /// Every unfinished-data path of `dest` (for deleting leftovers).
 pub fn partial_paths(dest: &std::path::Path) -> Vec<PathBuf> {
     let mut v = vec![
@@ -5297,6 +5327,17 @@ fn runtime_version_supported(name:&str,version:&str)->bool {
     match name {"node"=>major>=22,"deno"=>major>2||(major==2&&minor>=3),_=>false}
 }
 fn js_runtime() -> Option<&'static str> { js_runtime_path().map(|(name,_)| name) }
+
+/// The JavaScript runtime yt-dlp will use ("deno", "node"…), if any.
+pub fn js_runtime_name() -> Option<&'static str> { js_runtime() }
+
+/// yt-dlp, ffmpeg and a JavaScript runtime are all there (file checks only,
+/// no version probes: cheap enough for start-up).
+pub fn helpers_present() -> bool {
+    let local = ytdlp_local_path().filter(|p| crate::platform::executable_file(p));
+    let ytdlp = ytdlp_on_path().is_some() || ytdlp_custom_path().is_some() || local.is_some();
+    ytdlp && ffmpeg_path().is_some() && js_runtime().is_some()
+}
 
 /// Where the app keeps its own Deno (next to its yt-dlp).
 pub fn deno_local_path() -> Option<std::path::PathBuf> {

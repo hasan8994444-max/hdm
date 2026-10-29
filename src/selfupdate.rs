@@ -204,7 +204,57 @@ pub fn install(new_dir: &Path, target: &Path) -> Result<usize> {
     for (_, bak) in &moved {
         let _ = std::fs::remove_file(bak);
     }
+    remove_dropped(target, &files);
     Ok(files.len())
+}
+
+/// The list of files the last update installed, kept in the app's folder.
+const MANIFEST: &str = ".dc-files";
+
+fn rel_key(p: &Path) -> String {
+    p.to_string_lossy().replace('\\', "/")
+}
+
+/// Files the previous version installed that this one no longer has (an old
+/// `DownloadCraft-Firefox-0.9.10.xpi`, a script dropped from the extension)
+/// go, and the new list is written. Without a list (a copy older than the
+/// list) only what is certainly the app's own goes: release packages named
+/// `DownloadCraft-…` and files inside its two extension folders. Anything
+/// else in the folder is the user's and is never touched.
+fn remove_dropped(target: &Path, files: &[PathBuf]) {
+    let new: std::collections::HashSet<String> = files.iter().map(|f| rel_key(f)).collect();
+    let old: Vec<String> = match std::fs::read_to_string(target.join(MANIFEST)) {
+        Ok(text) => text.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string).collect(),
+        Err(_) => files_under(target)
+            .unwrap_or_default()
+            .iter()
+            .map(|f| rel_key(f))
+            .filter(|k| {
+                let top = k.split('/').next().unwrap_or("");
+                let package = !k.contains('/')
+                    && top.starts_with("DownloadCraft-")
+                    && (k.ends_with(".xpi") || k.ends_with(".zip"));
+                package || top == "browser-extension" || top == "browser-extension-firefox"
+            })
+            .collect(),
+    };
+    for k in old {
+        // Never a path that leaves the folder, the program, or the list.
+        if new.contains(&k) || k.contains("..") || k.starts_with('/') || k == exe_name() || k == MANIFEST {
+            continue;
+        }
+        let p = target.join(&k);
+        if p.is_file() {
+            let _ = std::fs::remove_file(&p);
+            // An emptied folder of the app's goes too.
+            if let Some(dir) = p.parent().filter(|d| *d != target) {
+                let _ = std::fs::remove_dir(dir);
+            }
+        }
+    }
+    let mut list: Vec<&String> = new.iter().collect();
+    list.sort();
+    let _ = std::fs::write(target.join(MANIFEST), list.into_iter().map(|k| format!("{k}\n")).collect::<String>());
 }
 
 /// Remove `.dcold` leftovers in the app's folder (best effort, at start).
@@ -377,6 +427,38 @@ mod tests {
         assert_eq!(std::fs::read(app.join("browser-extension/content.js")).unwrap(), b"js2");
         assert_eq!(std::fs::read(app.join("my-notes.txt")).unwrap(), b"mine");
         assert!(!old_path(&app.join(exe_name())).exists(), "unused backups are removed");
+    }
+
+    #[test]
+    fn an_update_removes_what_the_new_version_dropped() {
+        let d = tmp("dropped");
+        let (new, app) = (d.join("new"), d.join("app"));
+        std::fs::create_dir_all(new.join("browser-extension")).unwrap();
+        std::fs::create_dir_all(app.join("browser-extension")).unwrap();
+        std::fs::write(new.join(exe_name()), b"v2").unwrap();
+        std::fs::write(new.join("DownloadCraft-Firefox-0.9.11.xpi"), b"x2").unwrap();
+        std::fs::write(new.join("browser-extension/content.js"), b"js2").unwrap();
+        std::fs::write(app.join(exe_name()), b"v1").unwrap();
+        std::fs::write(app.join("DownloadCraft-Firefox-0.9.10.xpi"), b"x1").unwrap();
+        std::fs::write(app.join("browser-extension/old-helper.js"), b"gone").unwrap();
+        std::fs::write(app.join("my-notes.txt"), b"mine").unwrap();
+        // First update: no list yet, so only the app's own leftovers go.
+        install(&new, &app).unwrap();
+        assert!(!app.join("DownloadCraft-Firefox-0.9.10.xpi").exists());
+        assert!(!app.join("browser-extension/old-helper.js").exists());
+        assert!(app.join("DownloadCraft-Firefox-0.9.11.xpi").exists());
+        assert_eq!(std::fs::read(app.join("my-notes.txt")).unwrap(), b"mine");
+        // Next update: the list says what the previous one installed.
+        let newer = d.join("newer");
+        std::fs::create_dir_all(newer.join("browser-extension")).unwrap();
+        std::fs::write(newer.join(exe_name()), b"v3").unwrap();
+        std::fs::write(newer.join("DownloadCraft-Firefox-0.9.12.xpi"), b"x3").unwrap();
+        std::fs::write(newer.join("browser-extension/content.js"), b"js3").unwrap();
+        install(&newer, &app).unwrap();
+        assert!(!app.join("DownloadCraft-Firefox-0.9.11.xpi").exists());
+        assert!(app.join("DownloadCraft-Firefox-0.9.12.xpi").exists());
+        assert_eq!(std::fs::read(app.join("my-notes.txt")).unwrap(), b"mine");
+        assert_eq!(std::fs::read(app.join(exe_name())).unwrap(), b"v3");
     }
 
     #[test]

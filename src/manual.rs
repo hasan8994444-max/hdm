@@ -168,6 +168,11 @@ impl ManState {
         self.fire(r, rel, org)
     }
 
+    /// Where the held left press began (None when the button is up).
+    pub fn press_origin(&self) -> Option<Pos2> {
+        if self.down_l { self.org_l } else { None }
+    }
+
     /// Rising left-press edge inside `r` (for drag starts).
     /// Consumes, so only one drag starts per press.
     pub fn press_started_in(&mut self, r: &Rect) -> bool {

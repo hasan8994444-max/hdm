@@ -40,6 +40,9 @@ pub fn take_show_request() -> bool {
     SHOW.swap(false, Ordering::SeqCst)
 }
 pub fn set_hwnd(_: isize) {}
+pub fn hwnd() -> isize {
+    0
+}
 pub fn is_parked() -> bool {
     false
 }
@@ -98,4 +101,5 @@ pub fn tooltip() -> &'static str {
 }
 pub fn set_titlebar_dark(_: bool) {}
 pub fn set_titlebar_color(_: (u8, u8, u8)) {}
+pub fn theme_caption(_: bool) {}
 pub fn refresh_titlebar() {}

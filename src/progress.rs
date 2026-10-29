@@ -265,7 +265,8 @@ const ROW_H: f32 = 15.0;
 
 const PROG_Y: f32 = 266.0;
 const PROG_W: f32 = 440.0;
-const PROG_H: f32 = 7.0;
+// A bold bar: the first thing the eye finds in the window.
+const PROG_H: f32 = 11.0;
 
 const PART_Y: f32 = 284.0;
 const HEAD_Y: f32 = 293.0;
@@ -410,6 +411,8 @@ struct ProgressApp {
     tab: u8,
     limit_input: String,
     limit_known: Option<u64>,
+    /// The speed-limit field is in MB/s (else KB/s).
+    limit_mb: bool,
     finish_sel: String,
     /// Last height sent to the OS, so the window is only resized on change.
     win_h: f32,
@@ -556,6 +559,7 @@ pub fn run() -> eframe::Result<()> {
         tab: 0,
         limit_input,
         limit_known: None,
+        limit_mb: false,
         finish_sel,
         win_h: 0.0,
         parts_open: true,
@@ -990,7 +994,6 @@ impl ProgressApp {
     fn body_speed(&mut self, ui: &mut egui::Ui, o: egui::Pos2, item: &DownloadItem, downloading: bool) {
         let ctx = ui.ctx().clone();
         let p = ui.painter().clone();
-        let cap: u64 = self.limit_input.trim().parse().unwrap_or(0);
         let live_conns = self.snap.parts.iter().filter(|(s, e, d)| s + d <= *e).count();
         kv_row(
             &p,
@@ -1018,90 +1021,122 @@ impl ProgressApp {
             pl().dm_txt,
             reg(12.0),
         );
-        kv_row(
-            &p,
-            o,
-            138.0,
-            "Global Speed Cap:",
-            if cap == 0 {
-                "Unlimited".into()
-            } else {
-                format!("{cap} KB/s")
-            },
-            pl().dm_txt,
+
+        // ---- speed limit: one row — label, number, unit, Apply ----
+        let row_y = 136.0;
+        p.text(
+            egui::pos2(o.x + PAD_X, o.y + row_y + 15.0),
+            egui::Align2::LEFT_CENTER,
+            "Speed limit:",
             reg(12.0),
+            pl().dm_lbl,
         );
-        // ---- the cap row: a slim field and a slim accent button ----
-        let field = at(o, PAD_X, 168.0, 348.0, 30.0);
-        dm_field(
-            ui,
-            "pg_limit",
-            field,
-            field.max.x - 10.0,
-            &mut self.limit_input,
-            "0 = unlimited (KB/s)",
-            false,
-        );
-        let apply = at(o, IN_R - 84.0, 168.0, 84.0, 30.0);
+        let field = at(o, PAD_X + 104.0, row_y, 132.0, 30.0);
+        dm_field(ui, "pg_limit", field, field.max.x - 10.0, &mut self.limit_input, "No limit", false);
+        // KB/s | MB/s, so the number means what it says.
+        let seg = at(o, PAD_X + 244.0, row_y, 104.0, 30.0);
+        p.rect_filled(seg, DM_RAD, pl().dm_line);
+        for (k, label) in ["KB/s", "MB/s"].iter().enumerate() {
+            let r = egui::Rect::from_min_size(egui::pos2(seg.min.x + 3.0 + k as f32 * 49.0, seg.min.y + 3.0), egui::vec2(49.0, 24.0));
+            let on = self.limit_mb == (k == 1);
+            let resp = ui.interact(r, egui::Id::new(("pg-unit", k)), egui::Sense::click());
+            if on {
+                p.rect_filled(r, DM_RAD - 1.0, DM_ACC.gamma_multiply(0.9));
+            } else if resp.hovered() {
+                p.rect_filled(r, DM_RAD - 1.0, pl().dm_hover2);
+            }
+            p.text(r.center(), egui::Align2::CENTER_CENTER, *label, semi(11.0), if on { egui::Color32::WHITE } else { pl().dm_dim });
+            if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                self.limit_mb = k == 1;
+            }
+        }
+        let apply = at(o, IN_R - 76.0, row_y, 76.0, 30.0);
         let ab = ui.interact(apply, egui::Id::new("pg-apply"), egui::Sense::click());
         dm_gradient(&p, apply, DM_RAD, DM_ACC, DM_ACC2);
-        p.text(
-            apply.center(),
-            egui::Align2::CENTER_CENTER,
-            "Apply",
-            semi(12.0),
-            egui::Color32::WHITE,
-        );
+        p.text(apply.center(), egui::Align2::CENTER_CENTER, "Apply", semi(12.0), egui::Color32::WHITE);
         if ab.hovered() {
             ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         if ab.clicked() {
-            match self.limit_input.trim().parse::<u64>() {
-                Ok(k) => {
-                    send_cmd_kv("limit", "kbps", serde_json::Value::from(k));
-                    self.limit_known = Some(k);
-                }
-                Err(_) => self.limit_known = None,
+            // Empty or 0 = no limit; decimals allowed ("1.5" MB/s).
+            let txt = self.limit_input.trim().replace(',', ".");
+            let v: f64 = if txt.is_empty() { 0.0 } else { txt.parse().unwrap_or(-1.0) };
+            if v >= 0.0 {
+                let kbps = (v * if self.limit_mb { 1024.0 } else { 1.0 }).round() as u64;
+                send_cmd_kv("limit", "kbps", serde_json::Value::from(kbps));
+                self.limit_known = Some(kbps);
+            } else {
+                self.limit_known = None;
             }
         }
-        let note = match self.limit_known {
-            Some(k) => format!("Cap {k} KB/s sent — the app applies it live."),
-            None => "Type a number in KB/s and press Apply — 0 means unlimited.".to_string(),
+        let fmt_cap = |k: u64| {
+            if k >= 1024 {
+                format!("{:.1} MB/s", k as f64 / 1024.0).replace(".0 MB", " MB")
+            } else {
+                format!("{k} KB/s")
+            }
         };
-        p.text(
-            egui::pos2(o.x + PAD_X, o.y + 204.0),
-            egui::Align2::LEFT_TOP,
-            note,
-            reg(10.0),
-            pl().dm_dim,
-        );
-        // Speed over the last ~30 seconds.
-        let g = at(o, PAD_X, 220.0, PROG_W, 38.0);
-        p.rect_filled(g, 4.0, pl().dm_line);
+        let note = match self.limit_known {
+            Some(0) => "No limit — downloads use the full speed.".to_string(),
+            Some(k) => format!("Every download is limited to {} in all (applied now).", fmt_cap(k)),
+            None => "Limits every download in all · empty or 0 = no limit.".to_string(),
+        };
+        p.text(egui::pos2(o.x + PAD_X, o.y + row_y + 40.0), egui::Align2::LEFT_CENTER, note, reg(10.5), pl().dm_dim);
+
+        // ---- speed over the last half minute ----
+        let g = at(o, PAD_X, 192.0, PROG_W, 66.0);
+        p.rect_filled(g, 6.0, pl().dm_trough);
+        p.rect_stroke(g, 6.0, egui::Stroke::new(1.0, pl().dm_line), egui::StrokeKind::Inside);
+        let plot = egui::Rect::from_min_max(egui::pos2(g.left() + 8.0, g.top() + 18.0), egui::pos2(g.right() - 8.0, g.bottom() - 6.0));
+        for k in 1..=2 {
+            let y = plot.top() + plot.height() * k as f32 / 3.0;
+            p.hline(plot.x_range(), y, egui::Stroke::new(1.0, pl().dm_line.gamma_multiply(0.7)));
+        }
+        p.text(egui::pos2(g.left() + 8.0, g.top() + 9.0), egui::Align2::LEFT_CENTER, "Speed · last 30 s", reg(9.5), pl().dm_dim);
         let peak = self.speed_hist.iter().cloned().fold(0.0_f64, f64::max);
         if peak > 0.0 && self.speed_hist.len() > 1 {
             let n = self.speed_hist.len();
+            let top = peak * 1.1;
             let pts: Vec<egui::Pos2> = self
                 .speed_hist
                 .iter()
                 .enumerate()
                 .map(|(i, v)| {
                     egui::pos2(
-                        g.left() + 2.0 + (g.width() - 4.0) * i as f32 / (n - 1) as f32,
-                        g.bottom() - 3.0 - (g.height() - 6.0) * (*v / peak) as f32,
+                        plot.left() + plot.width() * i as f32 / (n - 1) as f32,
+                        plot.bottom() - plot.height() * (*v / top) as f32,
                     )
                 })
                 .collect();
-            p.add(egui::Shape::line(pts, egui::Stroke::new(1.5, DM_ACC)));
+            // A soft fill under the line: one quad (two triangles) per step.
+            let mut mesh = egui::Mesh::default();
+            let fill_top = DM_ACC.gamma_multiply(0.32);
+            let fill_bot = DM_ACC.gamma_multiply(0.02);
+            for w in pts.windows(2) {
+                let base = mesh.vertices.len() as u32;
+                mesh.colored_vertex(w[0], fill_top);
+                mesh.colored_vertex(w[1], fill_top);
+                mesh.colored_vertex(egui::pos2(w[1].x, plot.bottom()), fill_bot);
+                mesh.colored_vertex(egui::pos2(w[0].x, plot.bottom()), fill_bot);
+                mesh.add_triangle(base, base + 1, base + 2);
+                mesh.add_triangle(base, base + 2, base + 3);
+            }
+            p.add(egui::Shape::mesh(mesh));
+            p.add(egui::Shape::line(pts.clone(), egui::Stroke::new(1.8, DM_ACC)));
+            if let Some(last) = pts.last() {
+                p.circle_filled(*last, 3.5, DM_ACC);
+                p.circle_stroke(*last, 5.5, egui::Stroke::new(1.0, DM_ACC.gamma_multiply(0.4)));
+            }
+            let now = self.speed_hist.back().copied().unwrap_or(0.0);
             p.text(
-                egui::pos2(g.right() - 6.0, g.top() + 4.0),
-                egui::Align2::RIGHT_TOP,
-                format!("peak {}/s", format_bytes(peak as u64)),
-                reg(9.0),
-                pl().dm_dim,
+                egui::pos2(g.right() - 8.0, g.top() + 9.0),
+                egui::Align2::RIGHT_CENTER,
+                format!("now {}/s  ·  peak {}/s", format_bytes(now as u64), format_bytes(peak as u64)),
+                reg(9.5),
+                pl().dm_txt,
             );
         } else {
-            p.text(g.center(), egui::Align2::CENTER_CENTER, "speed graph appears while downloading", reg(9.5), pl().dm_dim);
+            p.text(plot.center(), egui::Align2::CENTER_CENTER, "The graph appears while it downloads", reg(10.0), pl().dm_dim);
         }
     }
 
@@ -1241,12 +1276,12 @@ impl ProgressApp {
         );
     }
 
-    /// The concept's 8px accent bar (every tab keeps it: it is the "still
+    /// The accent progress bar (every tab keeps it: it is the "still
     /// running" signal), with the exact numbers as hover text.
     fn progress_bar(&mut self, ui: &mut egui::Ui, o: egui::Pos2, item: &DownloadItem, frac: f32) {
         let p = ui.painter().clone();
         let track = at(o, PAD_X, PROG_Y, PROG_W, PROG_H);
-        p.rect_filled(track, 4.0, pl().dm_line);
+        p.rect_filled(track, PROG_H / 2.0, pl().dm_line);
         // Before a single byte has arrived the bar sweeps a segment instead of
         // sitting empty: yt-dlp resolves YouTube's player challenge for several
         // seconds first, and a frozen bar is indistinguishable from a stalled
@@ -1265,7 +1300,7 @@ impl ProgressApp {
                 dm_gradient_x(
                     &p,
                     egui::Rect::from_min_size(egui::pos2(l, track.min.y), egui::vec2(r - l, PROG_H)),
-                    4.0,
+                    PROG_H / 2.0,
                     DM_ACC,
                     DM_ACC2,
                 );
@@ -1276,9 +1311,9 @@ impl ProgressApp {
             let live = self.snap.live && !matches!(item.status, Status::Paused | Status::Completed | Status::Failed(_));
             if live {
                 // Soft glow under the filled part.
-                p.rect_filled(fill.expand(2.0), 6.0, DM_ACC2.gamma_multiply(0.18));
+                p.rect_filled(fill.expand(2.0), PROG_H / 2.0 + 2.0, DM_ACC2.gamma_multiply(0.18));
             }
-            dm_gradient_x(&p, fill, 4.0, DM_ACC, DM_ACC2);
+            dm_gradient_x(&p, fill, PROG_H / 2.0, DM_ACC, DM_ACC2);
             if live {
                 // Diagonal stripes that keep moving and a light sheen that
                 // sweeps across: the bar reads as busy even when the

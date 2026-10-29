@@ -83,6 +83,21 @@ impl Kind {
             Kind::Other => ("Other", "File"),
         }
     }
+    /// The main list's outline mark for this type (`app::line_icon`); web
+    /// pages have none there and keep the globe.
+    fn line_key(self) -> Option<&'static str> {
+        match self {
+            Kind::Video => Some("Video"),
+            Kind::Audio => Some("Music"),
+            Kind::Image => Some("Image"),
+            Kind::Doc => Some("Document"),
+            Kind::Zip => Some("Compressed"),
+            Kind::App => Some("Apps"),
+            Kind::Other => Some("Other"),
+            Kind::Page => None,
+        }
+    }
+    #[allow(dead_code)]
     fn glyph(self) -> &'static str {
         match self {
             Kind::Video => crate::app::MI_SLIDESHOW,
@@ -219,6 +234,8 @@ enum SortBy {
 }
 
 struct LinksApp {
+    /// The native title bar has been themed.
+    caption_done: bool,
     page_url: String,
     title: String,
     cookie: String,
@@ -484,87 +501,107 @@ impl LinksApp {
     fn toolbar(&mut self, ui: &mut egui::Ui) {
         let t = pl();
         let dark = ui.visuals().dark_mode;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-            // Search field.
-            // Narrower on a small window, so the type chips keep their room.
-            let search_w = (ui.available_width() * 0.3).clamp(150.0, 250.0);
-            let (r, _) = ui.allocate_exact_size(Vec2::new(search_w, 30.0), Sense::hover());
-            let focused = ui.memory(|m| m.focused() == Some(egui::Id::new("links-q")));
-            ui.painter().rect(r, 6.0, t.bg, Stroke::new(1.0, if focused { t.primary } else { t.card_bd }), egui::StrokeKind::Inside);
-            ui.painter().text(Pos2::new(r.min.x + 16.0, r.center().y), Align2::CENTER_CENTER, crate::app::MI_SEARCH, icon(15.0), t.dim);
-            ui.put(
-                Rect::from_min_max(Pos2::new(r.min.x + 28.0, r.min.y + 4.0), Pos2::new(r.max.x - 6.0, r.max.y - 4.0)),
-                egui::TextEdit::singleline(&mut self.filter)
-                    .id(egui::Id::new("links-q"))
-                    .frame(false)
-                    .font(reg(12.0))
-                    .hint_text("Filter by name, type or address")
-                    .vertical_align(egui::Align::Center),
-            );
-            // Type chips with counts (only the types present).
-            let mut counts = [0usize; 8];
-            for r in &self.rows {
-                counts[Kind::ALL.iter().position(|k| *k == r.kind).unwrap_or(7)] += 1;
+        // One compact row: search, type chips, "Hide web pages". Laid out by
+        // hand so every piece shares one height and one centre line, with
+        // even gaps; it wraps to a second line only when there is no room.
+        const H: f32 = 30.0;
+        const GAP: f32 = 8.0;
+        const SEARCH_W: f32 = 230.0;
+        let mut counts = [0usize; 8];
+        for r in &self.rows {
+            counts[Kind::ALL.iter().position(|k| *k == r.kind).unwrap_or(7)] += 1;
+        }
+        let mut chips: Vec<(Option<Kind>, String, usize)> = vec![(None, "All".into(), self.rows.len())];
+        for (k, n) in Kind::ALL.iter().zip(counts) {
+            if n > 0 {
+                chips.push((Some(*k), k.labels().0.into(), n));
             }
-            let mut chips: Vec<(Option<Kind>, String, usize)> = vec![(None, "All".into(), self.rows.len())];
-            for (k, n) in Kind::ALL.iter().zip(counts) {
-                if n > 0 {
-                    chips.push((Some(*k), k.labels().0.into(), n));
-                }
+        }
+        let p = ui.painter().clone();
+        let chip_w = |label: &str, num: &str, dot: bool| {
+            (if dot { 12.0 } else { 0.0 }) + crate::shaped::width(&p, label, &reg(11.5)) + crate::shaped::width(&p, num, &reg(10.5)) + 26.0
+        };
+        let hide_label = "Hide web pages";
+        let hide_w = crate::shaped::width(&p, hide_label, &reg(11.5)) + 42.0;
+        // Every piece's width, in order: search, chips, hide.
+        let mut widths = vec![SEARCH_W];
+        for (k, label, n) in &chips {
+            widths.push(chip_w(label, &n.to_string(), k.is_some()));
+        }
+        widths.push(hide_w);
+        // Positions (x, line) for a row as wide as the panel.
+        let avail = ui.available_width();
+        let mut pos = Vec::with_capacity(widths.len());
+        let (mut x, mut line) = (0.0f32, 0usize);
+        for w in &widths {
+            if x > 0.0 && x + w > avail {
+                x = 0.0;
+                line += 1;
             }
-            let toggle_w = 132.0;
-            let avail = ui.available_width() - toggle_w - 8.0;
-            egui::ScrollArea::horizontal()
-                .id_salt("links-chips")
-                .max_width(avail)
-                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 4.0;
-                        for (k, label, n) in chips {
-                            let on = self.chip == k;
-                            let num = n.to_string();
-                            let dot = if k.is_some() { 12.0 } else { 0.0 };
-                            let w = dot + crate::shaped::width(ui.painter(), &label, &reg(11.5)) + crate::shaped::width(ui.painter(), &num, &reg(10.5)) + 26.0;
-                            let (r, resp) = ui.allocate_exact_size(Vec2::new(w, 28.0), Sense::click());
-                            let p = ui.painter();
-                            let (fill, bd, fg) = if on {
-                                (t.primary.gamma_multiply(0.14), t.primary, t.primary)
-                            } else if resp.hovered() {
-                                (t.surface_lt, t.card_bd, t.txt)
-                            } else {
-                                (t.surface, t.card_bd, t.dim)
-                            };
-                            p.rect(r, 14.0, fill, Stroke::new(1.0, bd), egui::StrokeKind::Inside);
-                            let mut x = r.min.x + 10.0;
-                            if let Some(k) = k {
-                                p.circle_filled(Pos2::new(x + 3.5, r.center().y), 3.5, k.color(dark));
-                                x += dot;
-                            }
-                            let lw = crate::shaped::width(p, &label, &reg(11.5));
-                            p.text(Pos2::new(x, r.center().y), Align2::LEFT_CENTER, &label, reg(11.5), fg);
-                            p.text(Pos2::new(x + lw + 5.0, r.center().y), Align2::LEFT_CENTER, &num, reg(10.5), if on { t.primary } else { t.dim });
-                            if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                                self.chip = k;
-                            }
-                        }
-                    });
-                });
-            // "Hide web pages" switch, right-aligned.
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let (r, resp) = ui.allocate_exact_size(Vec2::new(toggle_w, 28.0), Sense::click());
-                let p = ui.painter();
-                let sw = Rect::from_min_size(Pos2::new(r.min.x, r.center().y - 8.0), Vec2::new(28.0, 16.0));
-                p.rect_filled(sw, 8.0, if self.hide_pages { t.primary } else { t.surface_lt });
-                let kx = if self.hide_pages { sw.max.x - 8.0 } else { sw.min.x + 8.0 };
-                p.circle_filled(Pos2::new(kx, sw.center().y), 6.0, Color32::WHITE);
-                p.text(Pos2::new(sw.max.x + 8.0, r.center().y), Align2::LEFT_CENTER, "Hide web pages", reg(11.5), if resp.hovered() { t.txt } else { t.dim });
-                if resp.on_hover_text("Folder listings, site pages and social links").clicked() {
-                    self.hide_pages = !self.hide_pages;
-                }
-            });
-        });
+            pos.push((x, line));
+            x += w + GAP;
+        }
+        let lines = line + 1;
+        let (area, _) = ui.allocate_exact_size(Vec2::new(avail, lines as f32 * H + (lines - 1) as f32 * GAP), Sense::hover());
+        let rect_of = |k: usize| {
+            let (x, l) = pos[k];
+            Rect::from_min_size(Pos2::new(area.min.x + x, area.min.y + l as f32 * (H + GAP)), Vec2::new(widths[k], H))
+        };
+        // Search.
+        let r = rect_of(0);
+        let focused = ui.memory(|m| m.focused() == Some(egui::Id::new("links-q")));
+        p.rect(r, H / 2.0, t.bg, Stroke::new(1.0, if focused { t.primary } else { t.card_bd }), egui::StrokeKind::Inside);
+        p.text(Pos2::new(r.min.x + 16.0, r.center().y), Align2::CENTER_CENTER, crate::app::MI_SEARCH, icon(14.0), t.dim);
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_max(Pos2::new(r.min.x + 28.0, r.min.y + 4.0), Pos2::new(r.max.x - 10.0, r.max.y - 4.0))));
+        child.add_sized(
+            child.available_size(),
+            egui::TextEdit::singleline(&mut self.filter)
+                .id(egui::Id::new("links-q"))
+                .frame(false)
+                .font(reg(11.5))
+                .hint_text("Filter by name or address")
+                .vertical_align(egui::Align::Center),
+        );
+        // Chips.
+        for (idx, (k, label, n)) in chips.into_iter().enumerate() {
+            let r = rect_of(idx + 1);
+            let resp = ui.interact(r, egui::Id::new(("links-chip", idx)), Sense::click());
+            let on = self.chip == k;
+            let num = n.to_string();
+            let (fill, bd, fg) = if on {
+                (t.primary.gamma_multiply(0.14), t.primary, t.primary)
+            } else if resp.hovered() {
+                (t.surface_lt, t.card_bd, t.txt)
+            } else {
+                (t.surface, t.card_bd, t.dim)
+            };
+            p.rect(r, H / 2.0, fill, Stroke::new(1.0, bd), egui::StrokeKind::Inside);
+            let mut x = r.min.x + 12.0;
+            if let Some(k) = k {
+                p.circle_filled(Pos2::new(x + 3.0, r.center().y), 3.5, k.color(dark));
+                x += 12.0;
+            }
+            let lw = crate::shaped::width(&p, &label, &reg(11.5));
+            p.text(Pos2::new(x, r.center().y), Align2::LEFT_CENTER, &label, reg(11.5), fg);
+            p.text(Pos2::new(x + lw + 5.0, r.center().y), Align2::LEFT_CENTER, &num, reg(10.5), if on { t.primary } else { t.dim });
+            if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                self.chip = k;
+            }
+        }
+        // "Hide web pages" with a check.
+        let r = rect_of(widths.len() - 1);
+        let resp = ui.interact(r, egui::Id::new("links-hide"), Sense::click());
+        let on = self.hide_pages;
+        p.rect(r, H / 2.0, if resp.hovered() { t.surface_lt } else { t.surface }, Stroke::new(1.0, t.card_bd), egui::StrokeKind::Inside);
+        let b = Rect::from_center_size(Pos2::new(r.min.x + 18.0, r.center().y), Vec2::splat(13.0));
+        p.rect(b, 3.0, if on { t.primary } else { t.bg }, Stroke::new(1.0, if on { t.primary } else { t.card_bd }), egui::StrokeKind::Inside);
+        if on {
+            crate::dm::dm_icon(&p, b.shrink(2.5), crate::dm::DmIcon::Check, Color32::WHITE, 2.8);
+        }
+        p.text(Pos2::new(r.min.x + 31.0, r.center().y), Align2::LEFT_CENTER, hide_label, reg(11.5), if resp.hovered() { t.txt } else { t.dim });
+        if resp.on_hover_text("Folder listings, site pages and social links").on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+            self.hide_pages = !self.hide_pages;
+        }
     }
 
     // -------------------------------------------------------------- table --
@@ -576,7 +613,8 @@ impl LinksApp {
         let card = ui.available_rect_before_wrap();
         ui.painter().rect(card, 8.0, t.bg, Stroke::new(1.0, t.card_bd), egui::StrokeKind::Inside);
         let inner = card.shrink(1.0);
-        let widths = col_widths(&self.cols, inner.width() - CB_W - crate::app::SB_SPACE);
+        let table_w = inner.width() - CB_W - crate::app::SB_SPACE;
+        let widths = col_widths(&self.cols, table_w);
         let xs = {
             let mut x = inner.min.x + CB_W;
             let mut v = [0.0; 4];
@@ -636,7 +674,10 @@ impl LinksApp {
                 };
                 p.rect_filled(bar, 1.5, if active { t.primary } else { t.card_bd });
                 if g.dragged() && g.drag_delta().x != 0.0 {
-                    self.cols = drag_divider(&self.cols, k, g.drag_delta().x);
+                    // Start from what is drawn (a narrow window may show the
+                    // name column narrower than stored).
+                    let drawn = [widths[0], widths[1], widths[2]];
+                    self.cols = drag_divider(&drawn, k, g.drag_delta().x, table_w);
                 }
                 if g.drag_stopped() {
                     save_cols(&self.cols);
@@ -677,10 +718,17 @@ impl LinksApp {
                     paint_check(p, Rect::from_center_size(Pos2::new(r.min.x + CB_W / 2.0, cy), Vec2::splat(15.0)), row.checked, false, resp.hovered());
                     // Name: type tile + name + link text.
                     let col = row.kind.color(dark).gamma_multiply(dim);
-                    let tile = Rect::from_min_size(Pos2::new(xs[0] + 8.0, cy - 13.0), Vec2::splat(26.0));
-                    p.rect_filled(tile, 6.0, col.gamma_multiply(0.16));
-                    p.text(tile.center(), Align2::CENTER_CENTER, row.kind.glyph(), icon(15.0), col);
-                    let nx = tile.max.x + 9.0;
+                    // The main list's one-colour outline marks: they follow the
+                    // theme instead of a coloured tile per type.
+                    let mark = Pos2::new(xs[0] + 20.0, cy);
+                    let mono = t.txt.gamma_multiply(0.7 * dim);
+                    match row.kind.line_key() {
+                        Some(k) => crate::app::line_icon(p, mark, 17.0, k, mono),
+                        None => {
+                            p.text(mark, Align2::CENTER_CENTER, MI_GLOBE, icon(17.0), mono);
+                        }
+                    }
+                    let nx = xs[0] + 38.0;
                     let nw = (xs[0] + widths[0] - nx - 8.0).max(20.0);
                     let name = crate::app::truncate_to_width(p, &row.name, semi(12.0), t.txt, nw);
                     crate::shaped::draw(p, Pos2::new(nx, cy - 1.0), Align2::LEFT_BOTTOM, &name, semi(12.0), t.txt.gamma_multiply(dim));
@@ -748,7 +796,9 @@ impl LinksApp {
         let total: u64 = self.rows.iter().filter(|r| r.kind != Kind::Page).map(|r| r.size.unwrap_or(0)).sum();
         let (area, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 74.0), Sense::hover());
         let p = ui.painter().clone();
-        // Selection line + bar.
+        // Status line across the whole width: what is checked on the left,
+        // the size check still running (or the total found) on the right, and
+        // under both a bar showing how much of the found size is checked.
         let line_y = area.min.y + 10.0;
         if n > 0 {
             let a = format!("{n}");
@@ -763,14 +813,21 @@ impl LinksApp {
         } else {
             p.text(Pos2::new(area.min.x, line_y), Align2::LEFT_CENTER, "Nothing checked yet — tick the files you want.", reg(12.0), t.dim);
         }
-        let bar = Rect::from_min_size(Pos2::new(area.min.x, line_y + 12.0), Vec2::new(260.0, 4.0));
-        p.rect_filled(bar, 2.0, t.surface_lt);
+        let right_note = if self.probes_left > 0 {
+            format!("Checking sizes · {} left", self.probes_left)
+        } else if total > 0 {
+            format!("{} found in all", format_bytes(total))
+        } else {
+            String::new()
+        };
+        if !right_note.is_empty() {
+            p.text(Pos2::new(area.max.x, line_y), Align2::RIGHT_CENTER, right_note, reg(11.0), t.dim);
+        }
+        let bar = Rect::from_min_size(Pos2::new(area.min.x, line_y + 12.0), Vec2::new(area.width(), 3.0));
+        p.rect_filled(bar, 1.5, t.surface_lt);
         if total > 0 && bytes > 0 {
             let f = (bytes as f32 / total as f32).clamp(0.0, 1.0);
-            p.rect_filled(Rect::from_min_size(bar.min, Vec2::new(bar.width() * f, 4.0)), 2.0, t.primary);
-        }
-        if self.probes_left > 0 {
-            p.text(Pos2::new(bar.max.x + 12.0, bar.center().y), Align2::LEFT_CENTER, format!("checking {} …", self.probes_left), reg(10.5), t.dim);
+            p.rect_filled(Rect::from_min_size(bar.min, Vec2::new(bar.width() * f, 3.0)), 1.5, t.primary);
         }
         // Save to: label, segmented choice, folder field + Browse.
         let row_y = area.max.y - 18.0;
@@ -898,21 +955,24 @@ const COL_MIN: f32 = 60.0;
 /// Stored widths of the three sized columns (name, type, size).
 const COLS_DEFAULT: [f32; 3] = [340.0, 130.0, 96.0];
 
+/// The "Download from" column never gets narrower than this while it can.
+const FLEX_MIN: f32 = 140.0;
+
 /// All four widths for a table `avail` wide: the stored three, and the rest
-/// for "Download from" (never under 140).
+/// for "Download from". They always fit: a narrow window takes the room from
+/// the name column first, then the others, so nothing runs past the edge.
 fn col_widths(stored: &[f32; 3], avail: f32) -> [f32; 4] {
-    let [n, t, s] = *stored;
-    // A narrow window takes the room from the name column first, so
-    // "Download from" stays readable instead of running off the edge.
-    let over = (n + t + s + 140.0 - avail).max(0.0);
-    let n = (n - over).max(160.0);
-    let flex = (avail - (n + t + s)).max(140.0);
-    [n, t, s, flex]
+    let mut w = *stored;
+    let mut over = (w.iter().sum::<f32>() + FLEX_MIN - avail).max(0.0);
+    for (k, floor) in [(0usize, 160.0f32), (1, COL_MIN), (2, COL_MIN)] {
+        let take = over.min((w[k] - floor).max(0.0));
+        w[k] -= take;
+        over -= take;
+    }
+    let flex = (avail - w.iter().sum::<f32>()).max(COL_MIN);
+    [w[0], w[1], w[2], flex]
 }
 
-/// Drag the divider after column `i` by `dx`: it follows the pointer, so the
-/// column on its left grows by what the one on its right loses; the flexible
-/// "Download from" column absorbs the change when it is one of the two.
 #[cfg(test)]
 #[test]
 fn narrow_windows_shrink_the_name_column() {
@@ -921,18 +981,19 @@ fn narrow_windows_shrink_the_name_column() {
     assert!(w[3] >= 140.0 && w[0] >= 160.0);
     // Wide: unchanged, the rest goes to "Download from".
     assert_eq!(col_widths(&[340.0, 130.0, 96.0], 1000.0), [340.0, 130.0, 96.0, 434.0]);
+    // Very narrow: still inside the table.
+    assert!(col_widths(&[600.0, 300.0, 200.0], 500.0).iter().sum::<f32>() <= 500.0 + 0.5);
 }
 
-fn drag_divider(stored: &[f32; 3], i: usize, dx: f32) -> [f32; 3] {
+/// Drag the divider after column `i` by `dx`, as in the main list: that
+/// column grows or shrinks and every column after it moves along; the
+/// flexible "Download from" column at the end takes up the difference, so
+/// it is never pushed out of the table (`avail` is the table's width).
+fn drag_divider(stored: &[f32; 3], i: usize, dx: f32, avail: f32) -> [f32; 3] {
     let mut out = *stored;
-    if i + 1 >= 3 {
-        // Size | Download from: Size grows, the flexible column gives way.
-        out[i] = (out[i] + dx).clamp(COL_MIN, 900.0);
-        return out;
-    }
-    let dx = dx.clamp(COL_MIN - out[i], out[i + 1] - COL_MIN);
-    out[i] += dx;
-    out[i + 1] -= dx;
+    let others: f32 = out.iter().enumerate().filter(|(k, _)| *k != i).map(|(_, w)| *w).sum();
+    let max = (avail - others - FLEX_MIN).max(COL_MIN);
+    out[i] = (out[i] + dx).clamp(COL_MIN, max.min(900.0));
     out
 }
 
@@ -1048,6 +1109,7 @@ pub fn run() -> eframe::Result<()> {
         _rt: rt,
         notice: String::new(),
         centered: false,
+        caption_done: false,
         focused: false,
         done: false,
         exited: false,
@@ -1074,23 +1136,34 @@ pub fn run() -> eframe::Result<()> {
 }
 
 const LINKS_W: f32 = 860.0;
-const LINKS_H: f32 = 540.0;
+const LINKS_H: f32 = 640.0;
 
 /// The window's opening size: the design size, but never more than about
 /// half of the screen's free area (on a small or zoomed screen the full
 /// size covered everything behind it).
 fn links_size(work: Option<egui::Rect>) -> egui::Vec2 {
     let (w, h) = match work {
-        Some(r) if r.width() > 120.0 && r.height() > 120.0 => (r.width() * 0.55, r.height() * 0.62),
+        Some(r) if r.width() > 120.0 && r.height() > 120.0 => (r.width() * 0.55, r.height() * 0.72),
         _ => (LINKS_W, LINKS_H),
     };
     egui::vec2(LINKS_W.min(w).max(640.0), LINKS_H.min(h).max(380.0))
 }
 
 impl eframe::App for LinksApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Some(text) = crate::i18n::take_font_text() {
             crate::fonts::ensure_text(ctx, &text);
+        }
+        // The native title bar in the app's theme, in a shade of its own.
+        if !self.caption_done {
+            use raw_window_handle::HasWindowHandle;
+            if let Ok(handle) = frame.window_handle() {
+                if let raw_window_handle::RawWindowHandle::Win32(w) = handle.as_raw() {
+                    crate::tray::set_hwnd(w.hwnd.get());
+                }
+            }
+            crate::tray::theme_caption(ctx.style().visuals.dark_mode);
+            self.caption_done = true;
         }
         crate::fonts::ensure_text(ctx, &self.title);
         for r in &self.rows {
@@ -1122,7 +1195,7 @@ impl eframe::App for LinksApp {
         let frame = egui::Frame::new().fill(pl().bg).inner_margin(egui::Margin { left: 16, right: 16, top: 12, bottom: 12 });
         egui::TopBottomPanel::top("links_top").frame(frame).show_separator_line(false).show(ctx, |ui| {
             self.header(ui);
-            ui.add_space(10.0);
+            ui.add_space(8.0);
             self.toolbar(ui);
         });
         egui::TopBottomPanel::bottom("links_bottom").frame(frame).show_separator_line(false).show(ctx, |ui| {
@@ -1159,16 +1232,17 @@ mod tests {
     #[test]
     fn dividers_follow_the_pointer_and_name_pages() {
         let c = COLS_DEFAULT;
-        // Name | Type: both sized, sum kept.
-        let d = drag_divider(&c, 0, 40.0);
-        assert_eq!((d[0], d[1]), (c[0] + 40.0, c[1] - 40.0));
-        // Size | Download from: Size grows, the flexible column gives way.
-        assert_eq!(drag_divider(&c, 2, 30.0)[2], c[2] + 30.0);
-        // Minimums hold.
-        assert_eq!(drag_divider(&c, 0, 900.0)[1], COL_MIN);
+        // The dragged column grows; the ones after it keep their widths and
+        // move along, and "Download from" gives way.
+        let d = drag_divider(&c, 0, 40.0, 1000.0);
+        assert_eq!((d[0], d[1], d[2]), (c[0] + 40.0, c[1], c[2]));
+        assert_eq!(drag_divider(&c, 2, 30.0, 1000.0)[2], c[2] + 30.0);
+        // Limits: never under the minimum, never pushing past the table.
+        assert_eq!(drag_divider(&c, 0, -900.0, 1000.0)[0], COL_MIN);
+        let far = drag_divider(&c, 0, 900.0, 1000.0);
+        assert!(far.iter().sum::<f32>() + 140.0 <= 1000.0 + 0.5, "{far:?}");
         let w = col_widths(&c, 1000.0);
         assert_eq!(w.iter().sum::<f32>(), 1000.0);
-        assert_eq!(col_widths(&c, 100.0)[3], 140.0);
         // Folder links name a page, not "download_<time>.bin".
         assert_eq!(page_name("https://d.example/?dir=Series/English/A", "A"), "A.html");
         assert_eq!(page_name("https://d.example/?dir=Series/English/A", ""), "A.html");

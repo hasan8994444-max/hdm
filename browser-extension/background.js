@@ -11,7 +11,7 @@ let lastFallbackError = "";
 // Must match manifest version + content.js EXT_VER. Tabs running an older
 // content script are rejected with a "reload the tab" error instead of
 // failing mysteriously (their extension APIs are gone after a reload).
-const EXT_VER = "0.9.11";
+const EXT_VER = "0.9.12";
 
 // Promise-style calls (the `await api.*` ones below) go through this handle so
 // one file serves both engines: Firefox exposes the promise-returning
@@ -1104,6 +1104,12 @@ async function performBrowserCapture(item) {
   const url = item.finalUrl || item.url;
   if (!url || !/^https?:\/\//i.test(url)) return; // blobs/data stay in browser
   if (!cfg.autoCapture) return;
+  // Only a download that just started. When the browser opens it can report
+  // downloads from the last session (one paused while the app was asked, an
+  // interrupted one it resumes); capturing those popped the app's window on
+  // every browser start, however often it was cancelled.
+  const started = Date.parse(item.startTime || "");
+  if (Number.isFinite(started) && Date.now() - started > 30000) return;
   // The user chose "Download in browser" for this one: never hand it back.
   if (item.byExtensionId && item.byExtensionId === chrome.runtime.id) return;
   // Clicked with the "keep in browser" key held.

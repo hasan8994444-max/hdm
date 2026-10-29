@@ -140,6 +140,11 @@ unsafe fn raise_existing(hwnd: isize) {
     force_foreground(hwnd);
 }
 
+/// The main window's native handle (0 before the first frame).
+pub fn hwnd() -> isize {
+    HWND.load(Ordering::SeqCst)
+}
+
 pub fn set_hwnd(hwnd: isize) {
     if hwnd != 0 {
         if HWND.swap(hwnd, Ordering::SeqCst) != hwnd {
@@ -376,6 +381,7 @@ pub fn restore() {
 /// a watchdog covers the one case where no paint can happen at all (a locked
 /// session): leaving a dead tray icon behind is worse than a forced exit.
 pub fn request_quit() {
+    crate::model::clear_heartbeat();
     QUITTING.store(true, Ordering::SeqCst);
     QUIT.store(true, Ordering::SeqCst);
     nudge_paint(); // wake the frame loop now, not half a second from now
@@ -558,6 +564,14 @@ pub fn set_titlebar_color(rgb: (u8, u8, u8)) {
     apply_caption_color();
 }
 
+/// Theme a window's native title bar: dark or light, in the page's own
+/// background colour (`bg` of each palette), so the title bar and the window
+/// read as one surface, with a fine border around the window.
+pub fn theme_caption(dark: bool) {
+    set_titlebar_dark(dark);
+    set_titlebar_color(if dark { (18, 19, 26) } else { (0xEE, 0xF0, 0xF6) });
+}
+
 /// Re-apply the last caption theme without touching the window geometry.
 pub fn refresh_titlebar() {
     let state = TITLEBAR_DARK.load(Ordering::SeqCst);
@@ -637,6 +651,9 @@ unsafe fn apply_caption_color_unsafe(hwnd: isize, dark: bool) {
     );
     let text: u32 = if dark { 0x00FF_FFFF } else { 0x0000_0000 };
     win32::DwmSetWindowAttribute(hwnd, 36, &text as *const u32 as *const std::ffi::c_void, size);
+    // DWMWA_BORDER_COLOR (34): a visible edge around the window.
+    let border: u32 = if dark { 0x003A_2C2A } else { 0x00DB_CEC9 };
+    win32::DwmSetWindowAttribute(hwnd, 34, &border as *const u32 as *const std::ffi::c_void, size);
 }
 
 #[cfg(windows)]

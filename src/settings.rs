@@ -46,6 +46,8 @@ struct Settings {
     extract_delete: bool,
     /// Pop the standalone "Download complete" dialog when a transfer ends.
     show_complete: bool,
+    /// The list's column titles without their icons.
+    hide_col_icons: bool,
     // Engine
     save_dir: String,
     category_folders: bool,
@@ -123,6 +125,7 @@ impl Default for Settings {
             extract_into_folder: true,
             extract_delete: false,
             show_complete: true,
+            hide_col_icons: false,
             save_dir: dirs::download_dir()
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_else(|| crate::model::default_download_dir().to_string_lossy().into_owned()),
@@ -213,6 +216,9 @@ fn load() -> Settings {
     }
     if let Some(b) = g("extract_delete").and_then(|x| x.as_bool()) {
         s.extract_delete = b;
+    }
+    if let Some(b) = g("hide_col_icons").and_then(|x| x.as_bool()) {
+        s.hide_col_icons = b;
     }
     if let Some(b) = g("show_complete").and_then(|x| x.as_bool()) {
         s.show_complete = b;
@@ -386,6 +392,7 @@ fn save(s: &Settings) -> bool {
     set(obj, "extract_delete", s.extract_delete.into());
     set(obj, "ffmpeg_custom_path", s.ffmpeg_custom_path.clone().into());
     set(obj, "show_complete", s.show_complete.into());
+    set(obj, "hide_col_icons", s.hide_col_icons.into());
     set(obj, "save_dir", s.save_dir.clone().into());
     set(obj, "category_folders", s.category_folders.into());
     set(obj, "connections_default", (s.connections_default as u64).into());
@@ -675,7 +682,7 @@ impl eframe::App for SettingsApp {
         );
         if self.theme_applied != resolved {
             crate::app::apply_theme(ctx, &self.s.theme);
-            crate::tray::set_titlebar_dark(crate::app::theme_is_dark(ctx, &self.s.theme));
+            crate::tray::theme_caption(crate::app::theme_is_dark(ctx, &self.s.theme));
             self.theme_applied = resolved;
         }
         // Come to the front while placing: opened from the main window, the
@@ -2447,6 +2454,24 @@ impl SettingsApp {
         if let Some(k) = picked {
             self.s.theme = k;
         }
+
+        // ---- Download list ----
+        let mut open_list = true;
+        let mut hide_icons = self.s.hide_col_icons;
+        card(ui, "Download list", None, &mut open_list, |ui| {
+            switch_row(
+                ui,
+                "hide_col_icons",
+                &mut hide_icons,
+                "Hide column icons",
+                "The list's column titles show text only (Name, Size, Status, Speed, Time left, Date).",
+            );
+        });
+        // Applies at once (no Save needed): the main window reloads it live.
+        if hide_icons != self.s.hide_col_icons {
+            crate::model::ui_pref_set_bool("hide_col_icons", hide_icons);
+        }
+        self.s.hide_col_icons = hide_icons;
 
         // ---- Language: one lang/<code>.json per language ----
         let mut open_lang = true;

@@ -109,7 +109,9 @@ pub const DARK_PAL: Palette = Palette {
     surface: egui::Color32::from_rgb(26, 27, 36),
     surface_lt: egui::Color32::from_rgb(36, 37, 50),
     header_bg: egui::Color32::from_rgb(13, 14, 20),
-    central_bg: egui::Color32::from_rgb(15, 16, 22),
+    // A step brighter than `bg`, as light mode's white cards are on its
+    // grey: the sidebar and the list read as panels on the window.
+    central_bg: egui::Color32::from_rgb(25, 26, 35),
     card_bd: egui::Color32::from_rgb(35, 36, 48),
     primary: egui::Color32::from_rgb(124, 92, 252),
     secondary: egui::Color32::from_rgb(184, 93, 255),
@@ -138,16 +140,18 @@ pub const DARK_PAL: Palette = Palette {
     dm_lbl: egui::Color32::from_rgb(0x64, 0x74, 0x8b),
     dm_head: egui::Color32::from_rgb(0x47, 0x55, 0x69),
     dm_warn: egui::Color32::from_rgb(0xff, 0x96, 0x78),
-    cg_bg: egui::Color32::from_rgb(0x1b, 0x1b, 0x1b),
-    cg_bd: egui::Color32::from_rgb(0x3a, 0x3a, 0x3a),
+    // The "Download complete" dialog in the app's own blue-tinted dark
+    // (it used neutral greys that did not match the windows around it).
+    cg_bg: egui::Color32::from_rgb(18, 19, 26),
+    cg_bd: egui::Color32::from_rgb(35, 36, 48),
     cg_txt: egui::Color32::from_rgb(0xe0, 0xe0, 0xf0),
     cg_dim: egui::Color32::from_rgb(0x99, 0x99, 0x99),
     cg_ctl: egui::Color32::from_rgb(0x88, 0x88, 0x88),
-    cg_box_bg: egui::Color32::from_rgb(0x2b, 0x2b, 0x2b),
-    cg_box_bd: egui::Color32::from_rgb(0x44, 0x44, 0x44),
-    cg_btn_bd: egui::Color32::from_rgb(0x55, 0x55, 0x55),
+    cg_box_bg: egui::Color32::from_rgb(25, 26, 35),
+    cg_box_bd: egui::Color32::from_rgb(46, 48, 64),
+    cg_btn_bd: egui::Color32::from_rgb(58, 60, 78),
     cg_box_txt: egui::Color32::from_rgb(0xcc, 0xcc, 0xcc),
-    cg_hover: egui::Color32::from_rgb(0x38, 0x38, 0x38),
+    cg_hover: egui::Color32::from_rgb(36, 37, 50),
 };
 
 pub const LIGHT_PAL: Palette = Palette {
@@ -454,7 +458,7 @@ pub(crate) const MI_INSERT_FILE: &str = "\u{e24d}";
 /// Collapsed / expanded affordances for the sidebar sections.
 const MI_OPEN: &str = "\u{e89e}";
 const MI_SPEED: &str = "\u{e9e4}";
-const MI_ARROW_DOWN: &str = "\u{e5db}";
+pub(crate) const MI_ARROW_DOWN: &str = "\u{e5db}";
 const MI_CHECK: &str = "\u{e5ca}";
 /// Popup-menu label prefixes: a ticked choice, and an unticked one in the
 /// same group (indented to line up with the ticked one).
@@ -1916,7 +1920,7 @@ impl SortCol {
             _ => None,
         }
     }
-    /// The header icon of the centred columns.
+    /// The header icon of every column (Name's sits at the left).
     fn icon(&self) -> Option<&'static str> {
         match self {
             SortCol::Size => Some("\u{e623}"),   // sd_storage
@@ -1924,7 +1928,7 @@ impl SortCol {
             SortCol::Speed => Some("\u{e9e4}"),  // speed
             SortCol::Eta => Some("\u{e8b5}"),    // schedule
             SortCol::Date => Some("\u{e935}"),   // calendar_today
-            SortCol::Name => None,
+            SortCol::Name => Some("\u{e24d}"),   // insert_drive_file
         }
     }
     fn title(&self) -> &'static str {
@@ -2217,6 +2221,10 @@ pub struct CraftApp {
     speed_windows_on: bool,
     speed_limit_live: std::sync::Arc<std::sync::atomic::AtomicU64>,
     update_check_on: bool,
+    /// Column titles without their icons (Settings → Appearance).
+    hide_col_icons: bool,
+    /// This press already started a drag out of the list.
+    drag_out_done: bool,
     update_status: String,
     update_busy: bool,
     update_rx: Option<std::sync::mpsc::Receiver<(String, Option<crate::selfupdate::Asset>, bool)>>,
@@ -2232,6 +2240,8 @@ pub struct CraftApp {
     /// First-run helper fetch (yt-dlp, ffmpeg, Deno): its log lines.
     helpers_rx: Option<std::sync::mpsc::Receiver<Vec<String>>>,
     helpers_started: bool,
+    /// The last update state written for the About window.
+    update_state_sent: String,
     /// A newer release exists: only then does the title bar show its update
     /// chip. (An asset URL can be missing while an update still exists.)
     update_found: bool,
@@ -2431,6 +2441,8 @@ impl CraftApp {
             speed_windows_on: false,
             speed_limit_live: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(u64::MAX)),
             update_check_on: true,
+            hide_col_icons: false,
+            drag_out_done: false,
             update_status: String::new(),
             update_busy: false,
             update_rx: None,
@@ -2440,6 +2452,7 @@ impl CraftApp {
             update_auto: false,
             helpers_rx: None,
             helpers_started: false,
+            update_state_sent: String::new(),
             update_found: false,
             update_auto_done: false,
             speed_hist: std::collections::HashMap::new(),
@@ -2622,7 +2635,18 @@ impl CraftApp {
                 "resume" => self.resume(id),
                 "cancel" => self.cancel_task(id),
                 "pause_all" => self.stop_all(),
-                "self_update" => self.start_self_update(),
+                "self_update" => {
+                    self.update_auto = false;
+                    self.start_self_update();
+                }
+                "check_update" => self.start_update_check(),
+                // Restart by itself once the running downloads are done.
+                "restart_when_idle" => self.update_auto = true,
+                "restart_update" => {
+                    if self.update_restart_ready {
+                        self.restart_for_update();
+                    }
+                }
                 "resume_all" => self.start_queue(),
                 "limit" => {
                     if let Some(k) = c.get("kbps").and_then(|x| x.as_u64()) {
@@ -2986,6 +3010,8 @@ impl CraftApp {
                     if let Some(b) = g("update_check_on").and_then(|x| x.as_bool()) {
                         self.update_check_on = b;
                     }
+                    // Settings → Appearance → Hide column icons.
+                    self.hide_col_icons = g("hide_col_icons").and_then(|x| x.as_bool()).unwrap_or(false);
                 }
             }
         }
@@ -3089,7 +3115,8 @@ impl CraftApp {
             }
             8 => self.show_queues = true,
             9 => Self::open_settings_window(),
-            10 => self.show_about = true,
+            10 => crate::about::spawn(),
+            25 => crate::setup::spawn(false),
             11 => self.import_list(),
             12 => self.export_list(),
             13 => self.retry_all_failed(),
@@ -3139,7 +3166,7 @@ impl CraftApp {
                 ("Dark".into(), 20),
                 ("Light".into(), 22),
             ],
-            _ => vec![("About".into(), 10)],
+            _ => vec![("Get ready…".into(), 25), ("About".into(), 10)],
         }
     }
 
@@ -3799,6 +3826,42 @@ impl CraftApp {
                 "Download Craft is still running",
                 "In the tray — left-click its icon to reopen, right-click for Exit.",
             );
+        }
+    }
+
+    /// What the About window draws: the update state, written to
+    /// `update_state.json` whenever it changes (the window is its own
+    /// process; `cmd.json` carries its buttons back).
+    fn publish_update_state(&mut self) {
+        let phase = if self.update_restart_ready {
+            "ready"
+        } else if self.selfupd_rx.is_some() {
+            "installing"
+        } else if self.update_busy {
+            "checking"
+        } else if self.update_found && self.update_asset.is_some() {
+            "available"
+        } else if self.update_status.starts_with("Update failed") {
+            "failed"
+        } else if self.update_status.starts_with("Up to date") {
+            "uptodate"
+        } else {
+            "idle"
+        };
+        let state = serde_json::json!({
+            "phase": phase,
+            "status": self.update_status,
+            "size": self.update_asset.as_ref().map(|a| a.size).unwrap_or(0),
+            "running": self.tasks.len(),
+            "portable": cfg!(windows) && crate::selfupdate::portable_dir().is_some(),
+        });
+        let text = state.to_string();
+        if text != self.update_state_sent {
+            if let Some(p) = crate::model::config_dir().map(|d| d.join("update_state.json")) {
+                if crate::model::atomic_write(&p, text.as_bytes()).is_ok() {
+                    self.update_state_sent = text;
+                }
+            }
         }
     }
 
@@ -5926,6 +5989,8 @@ async fn update_check_async() -> (String, Option<crate::selfupdate::Asset>, bool
     if tag.is_empty() {
         return ("Update check failed: no releases found.".to_string(), None, false);
     }
+    // What the About window shows about the newest release.
+    crate::about::save_release_info(&v, crate::model::is_newer_version(current, tag));
     if crate::model::is_newer_version(current, tag) {
         let url = v
             .get("html_url")
@@ -6106,6 +6171,7 @@ impl eframe::App for CraftApp {
             self.merge_queue_from_disk();
             self.check_wake();
             self.check_cmd();
+            self.publish_update_state();
             self.refresh_speed_limit();
             // Opt-in update check, once per session (silent unless newer).
             if self.update_check_on && !self.update_auto_done {
@@ -6117,11 +6183,20 @@ impl eframe::App for CraftApp {
             // first start, so a new user's first video download just works.
             if !self.helpers_started {
                 self.helpers_started = true;
-                let (tx, rx) = std::sync::mpsc::channel();
-                self.helpers_rx = Some(rx);
-                self.rt.spawn(async move {
-                    let _ = tx.send(crate::engine::prepare_helpers().await);
-                });
+                // Something missing (a helper, the browser connection, the
+                // extension): the "Get ready" window shows what, and fixes
+                // what it can at once. Otherwise helpers are only refreshed.
+                if crate::model::ui_pref_bool("setup_at_start", true) && crate::setup::something_missing() {
+                    // The window does the downloading: two processes must
+                    // not fetch the same helper into the same file.
+                    crate::setup::spawn(true);
+                } else {
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    self.helpers_rx = Some(rx);
+                    self.rt.spawn(async move {
+                        let _ = tx.send(crate::engine::prepare_helpers().await);
+                    });
+                }
             }
             if let Some(lines) = self.helpers_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
                 self.helpers_rx = None;
@@ -6153,7 +6228,8 @@ impl eframe::App for CraftApp {
                     // every file in its folder, then restart into the new
                     // version once no download is running.
                     let portable = cfg!(windows) && crate::selfupdate::portable_dir().is_some();
-                    if found && portable && self.update_asset.is_some() && self.selfupd_rx.is_none() {
+                    let auto = crate::model::ui_pref_bool("update_auto", true);
+                    if found && portable && auto && self.update_asset.is_some() && self.selfupd_rx.is_none() {
                         self.push_log("Installing the update in the background…");
                         self.update_auto = true;
                         self.start_self_update();
@@ -6190,13 +6266,10 @@ impl eframe::App for CraftApp {
         let resolved = format!("{}:{}", self.theme, theme_is_dark(ctx, &self.theme));
         if self.theme_applied != resolved {
             apply_theme(ctx, &self.theme);
-            // The native title bar follows the app theme: Windows otherwise
-            // keeps it dark for as long as the OS itself is dark. It also
-            // takes the page background, so the caption and the window body
-            // merge into one surface instead of two stacked strips.
-            crate::tray::set_titlebar_dark(theme_is_dark(ctx, &self.theme));
-            let page = pl().bg;
-            crate::tray::set_titlebar_color((page.r(), page.g(), page.b()));
+            // The native title bar follows the app theme (Windows otherwise
+            // keeps it dark for as long as the OS itself is dark), in a shade
+            // of its own: the page colour made it look like there was none.
+            crate::tray::theme_caption(theme_is_dark(ctx, &self.theme));
             self.theme_applied = resolved;
         }
 
@@ -6493,33 +6566,39 @@ impl eframe::App for CraftApp {
                         );
                     }
                     if self.man.clicked(&chip) {
-                        // The About card carries the details and the
-                        // "Download update" button (never a silent replace).
-                        self.show_about = true;
+                        // The About & Updates window: details, Update now.
+                        crate::about::spawn();
                     }
                     live.push(chip);
                     right = chip.left() - 8.0;
                 }
 
-                // ---- search: a round magnifier at rest; pointing at it opens
-                // the box with the cursor in it, leaving it closes it again
-                // (it stays open while it holds a search) ----
+                // ---- search: a round magnifier at rest; clicking it opens
+                // the box with the cursor in it. It stays open while it has
+                // the cursor or holds a search, and closes when you click
+                // elsewhere with it empty. ----
                 const SEARCH_W: f32 = 176.0;
                 let search_id = egui::Id::new("search");
                 let focused = ui.memory(|m| m.has_focus(search_id));
-                // Hover on the open box's whole width while it is open, so
-                // the pointer can move onto the text without closing it.
                 let open_w = ctx.data(|d| d.get_temp::<f32>(egui::Id::new("search_w"))).unwrap_or(28.0);
                 let hot = egui::Rect::from_min_size(egui::pos2(right - open_w, cy - 14.0), egui::vec2(open_w, 28.0));
                 let hov = self.man.hover(&hot);
-                let open = hov || !self.search.is_empty();
+                // Clicked and waiting for the cursor to land in the box.
+                let req_id = egui::Id::new("search_req");
+                let mut requested = ctx.data(|d| d.get_temp::<bool>(req_id)).unwrap_or(false);
+                if !focused && self.search.is_empty() && self.man.clicked(&hot) {
+                    requested = true;
+                }
+                if requested && focused {
+                    requested = false;
+                }
+                ctx.data_mut(|d| d.insert_temp(req_id, requested));
+                let open = requested || focused || !self.search.is_empty();
                 let t = ctx.animate_bool_with_time(egui::Id::new("search_open"), open, 0.18);
                 let w = 28.0 + t * (SEARCH_W - 28.0);
                 ctx.data_mut(|d| d.insert_temp(egui::Id::new("search_w"), w));
-                if open && !focused && t > 0.6 {
+                if requested && !focused && t > 0.6 {
                     ui.memory_mut(|m| m.request_focus(search_id));
-                } else if !open && focused && t < 0.4 {
-                    ui.memory_mut(|m| m.surrender_focus(search_id));
                 }
                 let pill = egui::Rect::from_min_size(
                     egui::pos2(right - w, cy - 14.0),
@@ -6664,7 +6743,7 @@ impl eframe::App for CraftApp {
                 let pad = 8.0;
                 let list_h = (card_h - pad * 2.0 - foot_h).max(80.0);
                 egui::Frame::new()
-                    .fill(pl().surface)
+                    .fill(pl().central_bg)
                     .stroke(egui::Stroke::new(1.0_f32, pl().card_bd))
                     .corner_radius(RADIUS)
                     .inner_margin(egui::Margin::same(8))
@@ -7038,9 +7117,26 @@ impl eframe::App for CraftApp {
                             // Size, Status, Speed, Time Left and Date: an icon and the
                             // title, centred over values that are centred too. Name
                             // reads from the left.
-                            match col.icon() {
+                            let icon = if self.hide_col_icons { None } else { col.icon() };
+                            match icon {
+                                // Name: its icon over the rows' file marks, its
+                                // title over the file names (read from the left).
+                                Some(icon) if matches!(*col, SortCol::Name) => {
+                                    let p = ui.painter();
+                                    p.text(egui::pos2(r.min.x + 17.0, r.center().y), egui::Align2::CENTER_CENTER, icon, crate::fonts::icon(12.5), color);
+                                    let shown = truncate_to_width(p, &txt, egui::FontId::proportional(9.5), color, (r.width() - 40.0).max(12.0));
+                                    crate::shaped::draw(p, egui::pos2(r.min.x + 32.0, r.center().y), egui::Align2::LEFT_CENTER, &shown, egui::FontId::proportional(9.5), color);
+                                }
                                 Some(icon) => header_icon_text(ui.painter(), r, icon, &txt, color),
-                                None => cell_text(ui.painter(), r, &txt, 9.5, color, !matches!(*col, SortCol::Name)),
+                                None if matches!(*col, SortCol::Name) => cell_text(ui.painter(), r, &txt, 9.5, color, false),
+                                // Icons hidden: the title alone, still centred
+                                // over its centred values.
+                                None => {
+                                    let p = ui.painter();
+                                    let f = egui::FontId::proportional(9.5);
+                                    let shown = truncate_to_width(p, &txt, f.clone(), color, (r.width() - 12.0).max(12.0));
+                                    crate::shaped::draw(p, r.center(), egui::Align2::CENTER_CENTER, &shown, f, color);
+                                }
                             }
                             self.hits.push((HitKind::HdrCol(*col), r.intersect(hdr_clip)));
                             {
@@ -10057,6 +10153,38 @@ impl CraftApp {
                         self.resize_cap = Some(cap);
                     } else {
                         self.save_ui_state();
+                    }
+                }
+            }
+        }
+        // Drag finished downloads out of the list, as from Explorer: onto
+        // a folder, the desktop, a chat. A press that began on a finished
+        // row and moved a little starts it; a selected row takes every
+        // selected finished file along.
+        if !self.man.down_left() {
+            self.drag_out_done = false;
+        }
+        if self.man.down_left() && !self.drag_out_done && self.resize_cap.is_none() && !self.show_add && self.details_id.is_none() {
+            if let (Some(o), Some(p)) = (self.man.press_origin(), self.man.pos()) {
+                if o.distance(p) > 8.0 {
+                    let row = self.hits.iter().rev().find_map(|(k, r)| match k {
+                        HitKind::Row(id) if r.contains(o) => Some(*id),
+                        _ => None,
+                    });
+                    if let Some(id) = row {
+                        self.drag_out_done = true;
+                        let selected = self.downloads.iter().find(|d| d.id == id).map(|d| d.selected).unwrap_or(false);
+                        let files: Vec<std::path::PathBuf> = self
+                            .downloads
+                            .iter()
+                            .filter(|d| if selected { d.selected } else { d.id == id })
+                            .filter(|d| matches!(d.status, Status::Completed))
+                            .map(|d| d.dest_path())
+                            .filter(|p| p.is_file())
+                            .collect();
+                        if !files.is_empty() {
+                            crate::platform::drag_files_out(&files);
+                        }
                     }
                 }
             }

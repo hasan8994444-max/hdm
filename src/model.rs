@@ -94,6 +94,14 @@ pub fn touch_heartbeat() {
     }
 }
 
+/// The main window is closing: say so at once, so a capture dialog opened
+/// right after does not take the app for running.
+pub fn clear_heartbeat() {
+    if let Some(p) = config_dir().map(|d| d.join("main.lock")) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
 pub fn is_main_live() -> bool {
     let Some(p) = config_dir().map(|d| d.join("main.lock")) else {
         return false;
@@ -102,7 +110,9 @@ pub fn is_main_live() -> bool {
         return false;
     };
     chrono::DateTime::parse_from_rfc3339(data.trim())
-        .map(|dt| chrono::Local::now().timestamp() - dt.timestamp() < 30)
+        // Refreshed every 2 s while the app runs; 30 s here kept a just-closed
+        // app "running" long enough to queue captures that then sat there.
+        .map(|dt| chrono::Local::now().timestamp() - dt.timestamp() < 10)
         .unwrap_or(false)
 }
 

@@ -7,7 +7,7 @@
   // Must match manifest version + background.js EXT_VER. The background
   // rejects messages from any other version with a "reload this tab"
   // error, so a stale script can never fail mysteriously.
-  const EXT_VER = "0.9.11";
+  const EXT_VER = "0.9.12";
   // Promise-style calls (the `await api.*` one below) go through this handle
   // so one file serves both engines: Firefox exposes the promise-returning
   // `browser` namespace, Chrome only has `chrome` (promise-capable under MV3).
@@ -1795,13 +1795,13 @@
   function videoDownloadBar(title) {
     const host = document.createElement("div");
     host.title = title;
-    host.style.cssText = "all:initial;display:block;height:34px;margin:0;padding:0;border:0;box-sizing:border-box;z-index:2147483647;";
+    host.style.cssText = "all:initial;display:block;height:30px;margin:0;padding:0;border:0;box-sizing:border-box;z-index:2147483647;";
     const root = host.attachShadow({mode:"open"});
     const style = document.createElement("style");
     style.textContent = `
       * { box-sizing:border-box; }
-      .bar { display:inline-flex;align-items:center;gap:2px;width:max-content;max-width:100%;height:34px;
-        padding:0 4px;overflow:hidden;border:1px solid var(--line);border-radius:17px;background:var(--glass);
+      .bar { display:inline-flex;align-items:center;gap:2px;width:max-content;max-width:100%;height:30px;
+        padding:0 3px;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:var(--glass);
         box-shadow:var(--shadow);font:12px/1.2 system-ui,sans-serif;
         /* See-through until pointed at: the video stays visible. */
         opacity:.32;transition:opacity .15s ease; }
@@ -1819,15 +1819,15 @@
          only × keeps a hover of its own. */
       :host(:hover) .bar { box-shadow:var(--shadow), inset 0 0 0 999px var(--hover); }
       button:focus-visible { outline:2px solid var(--acc);outline-offset:-2px; }
-      .grip { flex:0 0 0;width:0;opacity:0;height:26px;border-radius:13px;cursor:grab;color:var(--dim);touch-action:none;
+      .grip { flex:0 0 0;width:0;opacity:0;height:22px;border-radius:11px;cursor:grab;color:var(--dim);touch-action:none;
         transition:width .15s ease,opacity .15s ease; }
       :host(:hover) .grip, .bar:focus-within .grip { flex-basis:16px;width:16px;opacity:1; }
       .grip:active { cursor:grabbing; }
-      .download { touch-action:none;flex:0 0 auto;gap:7px;height:28px;padding:0 12px 0 5px;border-radius:14px; }
+      .download { touch-action:none;flex:0 0 auto;gap:7px;height:24px;padding:0 11px 0 4px;border-radius:12px; }
       .dot { width:18px;height:18px;border-radius:9px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;flex:none; }
       .label { white-space:nowrap; }
-      .close { flex:0 0 26px;width:26px;height:26px;border-radius:13px;color:var(--dim); }
-      .more { flex:0 0 22px;width:22px;height:26px;border-radius:13px;color:var(--dim); }
+      .close { flex:0 0 22px;width:22px;height:22px;border-radius:11px;color:var(--dim); }
+      .more { flex:0 0 20px;width:20px;height:22px;border-radius:11px;color:var(--dim); }
       :host([data-dc-compact]:not(:hover)) .bar:not(:focus-within) .more { display:none; }
       .close:hover { color:var(--x-fg);background:var(--x-bg); }
       [hidden] { display:none !important; }
@@ -2509,23 +2509,72 @@
       const fullscreen=document.fullscreenElement;
       const parent=fullscreen && fullscreen.contains(video) ? fullscreen : document.documentElement;
       if(host.parentNode!==parent)parent.appendChild(host);
-      const r=video.getBoundingClientRect();
+      // The part of the video that is actually visible: Facebook and others
+      // draw a video wider than its player and let the player clip it.
+      const r=visibleRect(video);
       const vw=window.innerWidth, vh=window.innerHeight;
-      const width=Math.min(barWidth(host),r.width-16,vw-16);
       // Mostly scrolled away = not the video being watched: its bar would be
       // pinned to the window edge, over the page.
       const visH=Math.min(r.bottom,vh)-Math.max(r.top,0), visW=Math.min(r.right,vw)-Math.max(r.left,0);
+      const top=Math.max(8,Math.min(vh-32,r.top+8));
+      // Anchored by its right edge, 8px inside the player's: pointing at it
+      // grows it to the left, into the player, never out past its edge.
+      const right=Math.max(8,vw-r.right+8);
+      // Hidden while a header pinned to the page (Facebook's top bar, a
+      // site's sticky menu) covers that spot, as IDM's does: drawn above
+      // everything, it used to float on top of the header after scrolling.
       const shown=r.width>=120 && r.height>=70 && visW>0 && visH>=Math.min(r.height*0.35,200)
-        && (!fbActive || video===fbActive);
+        && (!fbActive || video===fbActive)
+        && !coveredByPinned(vw-right-12,top+15,video,host);
       host.style.display=shown ? "block" : "none";
       if(activeBarDrag===host || applySavedBarPosition(host))return;
-      host.style.position="fixed";host.style.right="auto";host.style.bottom="auto";
+      host.style.position="fixed";host.style.left="auto";host.style.bottom="auto";
       host.style.width="max-content";host.style.maxWidth=Math.max(0,r.width-16)+"px";
-      host.style.left=Math.max(8,Math.min(vw-width-8,r.right-width-8))+"px";
-      host.style.top=Math.max(8,Math.min(vh-36,r.top+8))+"px";
+      host.style.right=right+"px";
+      host.style.top=top+"px";
     });
     const yt=document.getElementById && document.getElementById("dc-yt-btn");
     if(yt)placeInPlayer(yt,document.getElementById("dc-yt-panel"));
+  }
+  // The video's box cut down by every ancestor that clips its content
+  // (overflow other than visible), so a bar placed in it stays inside the
+  // player the user sees.
+  function visibleRect(video) {
+    const r = video.getBoundingClientRect();
+    let left = r.left, top = r.top, right = r.right, bottom = r.bottom;
+    try {
+      for (let n = video.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.overflowX !== "visible" || cs.overflowY !== "visible") {
+          const c = n.getBoundingClientRect();
+          if (c.width > 0 && c.height > 0) {
+            left = Math.max(left, c.left); right = Math.min(right, c.right);
+            top = Math.max(top, c.top); bottom = Math.min(bottom, c.bottom);
+          }
+        }
+        if (cs.position === "fixed") break;
+      }
+    } catch (e) { /* the plain box */ }
+    if (right - left < 40 || bottom - top < 40) return r;
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+  // Is the point (x, y) covered by something pinned to the page (position
+  // fixed or sticky) that is not part of this video's player? Our own bars
+  // and panels are skipped; the first other element there decides.
+  function coveredByPinned(x, y, video, self) {
+    try {
+      for (const el of document.elementsFromPoint(x, y)) {
+        if (el === self || (el.closest && el.closest("[data-dc-bar],[data-dc-panel]"))) continue;
+        if (el === video || el.contains(video) || video.contains(el)) return false;
+        for (let n = el; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+          if (n.contains(video)) return false; // the player's own overlay
+          const pos = getComputedStyle(n).position;
+          if (pos === "fixed" || pos === "sticky") return true;
+        }
+        return false;
+      }
+    } catch (e) { /* best effort */ }
+    return false;
   }
   function addDismissControl(button, key, panel) {
     const close=button.__dcClose;
@@ -3084,8 +3133,9 @@
       const q = oneClickOn && host.__dcQuickFor ? host.__dcQuickFor() : null;
       host.__dcQuick = q;
       const lab = host.__dcLabel;
-      const word = dcT("barDownload", "Download");
-      const text = q ? `${word} ${q.label}` : word;
+      // Always just "Download": the quality the user picks most is what
+      // the menu has selected when it opens.
+      const text = dcT("barDownload", "Download");
       if (lab && !host.__dcBusy && lab.textContent !== text) {
         lab.textContent = text;
         host.__dcIdleText = undefined;
@@ -3101,7 +3151,8 @@
     try {
       const lab = host && host.__dcLabel;
       if (!lab || host.__dcBusy || !q) return;
-      const text = `${dcT("barDownload", "Download")} ${q}`;
+      // The menu shows the pick; the button keeps its plain label.
+      const text = dcT("barDownload", "Download");
       if (lab.textContent !== text) { lab.textContent = text; host.__dcIdleText = undefined; host.__dcW = 0; }
     } catch (e) { /* cosmetic */ }
   }
