@@ -9,8 +9,9 @@
 Multi-connection downloads, a queue and scheduler, YouTube and 1,000+ sites through its own
 yt-dlp, and an extension that works with the app — or on its own.
 
+<a href="https://github.com/hungry-detective/downloadcraft/releases"><img src="https://img.shields.io/github/downloads/hungry-detective/downloadcraft/total?style=for-the-badge&label=downloads&color=22c55e&logo=github&logoColor=white" alt="Total downloads" height="48"></a>
+
 [![Latest release](https://img.shields.io/github/v/release/hungry-detective/downloadcraft?label=latest&style=flat-square&color=3b82f6)](https://github.com/hungry-detective/downloadcraft/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/hungry-detective/downloadcraft/total?style=flat-square&color=22c55e)](https://github.com/hungry-detective/downloadcraft/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-a78bfa?style=flat-square)](LICENSE)
 [![Made with Rust](https://img.shields.io/badge/made%20with-Rust-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
 
@@ -33,6 +34,10 @@ yt-dlp, and an extension that works with the app — or on its own.
 <img src="docs/screenshot-main-window.png" alt="Download Craft main window with active, paused, finished and failed downloads" width="92%">
 
 </div>
+
+## 🎬 See it in 90 seconds
+
+https://github.com/user-attachments/assets/acd6afd0-926c-4e11-a718-3edf42c4f7c6
 
 ---
 
