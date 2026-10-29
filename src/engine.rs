@@ -1592,6 +1592,134 @@ impl ResolvedMedia {
     }
 }
 
+
+// ---------- X / Reddit public embed resolvers ----------
+// Same idea as mobile downloaders use: both sites expose the video
+// through a public embed surface even when the post page itself hides it.
+
+/// The token X's public tweet-widget endpoint expects for a tweet id:
+/// base36 of (id / 1e15 * pi), with dots and zero runs stripped.
+fn twitter_token(id: &str) -> Option<String> {
+    let n: f64 = id.parse().ok()?;
+    let v = n / 1e15 * std::f64::consts::PI;
+    let mut int_part = v.trunc() as u64;
+    let mut frac = v - v.trunc();
+    let mut out = String::new();
+    if int_part == 0 {
+        out.push('0');
+    } else {
+        let mut rev = Vec::new();
+        while int_part > 0 {
+            rev.push(char::from_digit((int_part % 36) as u32, 36)?);
+            int_part /= 36;
+        }
+        out = rev.iter().rev().collect();
+    }
+    out.push('.');
+    for _ in 0..12 {
+        frac *= 36.0;
+        let d = frac.trunc();
+        out.push(char::from_digit(d as u32, 36)?);
+        frac -= d;
+    }
+    Some(out.chars().filter(|&c| c != '0' && c != '.').collect())
+}
+
+/// X / Twitter post -> highest-bitrate MP4 from the public widget API.
+async fn resolve_twitter_syndication(
+    client: &reqwest::Client,
+    opts: &EngineOpts,
+    page_url: &str,
+) -> Option<ResolvedMedia> {
+    let low = page_url.to_ascii_lowercase();
+    if !low.contains("twitter.com/") && !low.contains("x.com/") {
+        return None;
+    }
+    let id = page_url
+        .split("/status/")
+        .nth(1)?
+        .split(|c: char| !c.is_ascii_digit())
+        .next()
+        .filter(|s| !s.is_empty())?
+        .to_string();
+    let token = twitter_token(&id)?;
+    let api =
+        format!("https://cdn.syndication.twimg.com/tweet-result?id={id}&lang=en&token={token}");
+    let text = opts.get(client, &api).send().await.ok()?.text().await.ok()?;
+    let v: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let mut best: Option<(u64, String)> = None;
+    for m in v.get("mediaDetails")?.as_array()? {
+        let Some(variants) = m
+            .get("video_info")
+            .and_then(|x| x.get("variants"))
+            .and_then(|x| x.as_array())
+        else {
+            continue;
+        };
+        for var in variants {
+            if var.get("content_type").and_then(|x| x.as_str()) != Some("video/mp4") {
+                continue;
+            }
+            let Some(u) = var.get("url").and_then(|x| x.as_str()) else { continue };
+            let br = var.get("bitrate").and_then(|x| x.as_u64()).unwrap_or(0);
+            if best.as_ref().map_or(true, |(b, _)| br > *b) {
+                best = Some((br, u.to_string()));
+            }
+        }
+    }
+    let (_, u) = best?;
+    let title = v
+        .get("text")
+        .and_then(|x| x.as_str())
+        .unwrap_or("X video")
+        .chars()
+        .take(80)
+        .collect::<String>();
+    let title = if title.trim().is_empty() { "X video".to_string() } else { title };
+    Some(ResolvedMedia::single(u, with_ext(&title, ".mp4")))
+}
+
+/// Reddit post -> its v.redd.it HLS playlist, found via the public embed
+/// page (the post page itself is behind a browser check for apps).
+async fn resolve_reddit_embed(
+    client: &reqwest::Client,
+    opts: &EngineOpts,
+    page_url: &str,
+) -> Option<ResolvedMedia> {
+    let u = url::Url::parse(page_url).ok()?;
+    let host = u.host_str()?.to_ascii_lowercase();
+    if host == "v.redd.it" {
+        let id = u.path_segments()?.filter(|s| !s.is_empty()).last()?;
+        return Some(ResolvedMedia::single(
+            format!("https://v.redd.it/{id}/HLSPlaylist.m3u8"),
+            "Reddit video.mp4".to_string(),
+        ));
+    }
+    if host != "reddit.com" && !host.ends_with(".reddit.com") {
+        return None;
+    }
+    let segs: Vec<&str> = u.path_segments()?.filter(|s| !s.is_empty()).collect();
+    if segs.len() < 4 || segs[0] != "r" || segs[2] != "comments" {
+        return None;
+    }
+    let embed = format!("https://embed.reddit.com/r/{}/comments/{}/", segs[1], segs[3]);
+    let html = opts.get(client, &embed).send().await.ok()?.text().await.ok()?;
+    let pos = html.find("v.redd.it/")?;
+    let id: String = html[pos + 10..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric())
+        .collect();
+    if id.is_empty() {
+        return None;
+    }
+    Some(ResolvedMedia::single(
+        format!("https://v.redd.it/{id}/HLSPlaylist.m3u8"),
+        "Reddit video.mp4".to_string(),
+    ))
+}
+
+const MOBILE_UA: &str = "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
+
 /// Try to extract a direct media URL + title from an HTML video page.
 /// Handles YouTube watch pages (progressive MP4 streams, else an adaptive
 /// video+audio pair for high qualities) plus generic pages via og:video /
@@ -1647,7 +1775,26 @@ pub async fn resolve_media(
         // like the sorry-page URL itself, which then fails loudly later).
         return None;
     }
-    let hit = resolve_generic(&html, page_url);
+    if let Some(hit) = resolve_twitter_syndication(client, opts, page_url).await {
+        return Some(hit);
+    }
+    if let Some(hit) = resolve_reddit_embed(client, opts, page_url).await {
+        return Some(hit);
+    }
+    let mut hit = resolve_generic(&html, page_url);
+    if hit.is_none() && opts.user_agent != MOBILE_UA {
+        // Some sites hand their player JSON only to a mobile browser:
+        // one retry of the same scan under a mobile user-agent.
+        let mut m = opts.clone();
+        m.user_agent = MOBILE_UA.to_string();
+        if let Ok(resp) = m.get(client, page_url).send().await {
+            if let Ok(html2) = resp.text().await {
+                if !html2.is_empty() && html2.len() <= 8 * 1024 * 1024 {
+                    hit = resolve_generic(&html2, page_url);
+                }
+            }
+        }
+    }
     if std::env::var("HDM_DEBUG").is_ok() {
         match &hit {
             Some((u, _)) => dbg_resolve("generic", u),
@@ -2878,6 +3025,205 @@ fn social_post_caption(html: &str, page_url: &str) -> Option<String> {
     Some(d)
 }
 
+
+// ---------- inline player JSON (social / tube players) ----------
+// Technique reimplemented for HDM in original Rust (no third-party code):
+// many players keep the real stream URL in a named JSON string field in
+// the page body instead of a meta tag — Facebook's native player fields,
+// TikTok's playAddr, tube players' mediaDefinitions quality lists and
+// setVideoUrl* calls. The generic scan below reads those fields.
+
+/// Decode a JSON string body: `\/`, `\uXXXX`, `&amp;` and friends.
+fn json_unescape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('/') => out.push('/'),
+            Some('\\') => out.push('\\'),
+            Some('"') => out.push('"'),
+            Some('n') => out.push('\n'),
+            Some('t') => out.push('\t'),
+            Some('r') => out.push('\r'),
+            Some('u') => {
+                let hex: String = chars.by_ref().take(4).collect();
+                if let Some(n) =
+                    u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32)
+                {
+                    out.push(n);
+                }
+            }
+            Some(other) => out.push(other),
+            None => {}
+        }
+    }
+    out.replace("&amp;", "&")
+}
+
+/// First `"key": "..."` string field in a page body, JSON-unescaped.
+fn json_string_field(html: &str, key: &str) -> Option<String> {
+    let pat = format!("\"{key}\"");
+    let mut search = html;
+    while let Some(pos) = search.find(&pat) {
+        let rest = search[pos + pat.len()..].trim_start();
+        let rest = rest.strip_prefix(':').map(str::trim_start).unwrap_or("");
+        if let Some(body) = rest.strip_prefix('"') {
+            let mut raw = String::new();
+            let mut chars = body.chars();
+            let mut closed = false;
+            while let Some(c) = chars.next() {
+                match c {
+                    '\\' => {
+                        raw.push(c);
+                        if let Some(n) = chars.next() {
+                            raw.push(n);
+                        }
+                    }
+                    '"' => {
+                        closed = true;
+                        break;
+                    }
+                    _ => raw.push(c),
+                }
+            }
+            if closed {
+                let u = json_unescape(&raw);
+                if !u.is_empty() {
+                    return Some(u);
+                }
+            }
+        }
+        search = &search[pos + pat.len()..];
+    }
+    None
+}
+
+/// A page's own interface files (Meta's rsrc/static assets) are not media.
+fn is_site_asset(u: &str) -> bool {
+    let l = u.to_ascii_lowercase();
+    l.contains("/rsrc.php/")
+        || l.contains("//static.cdninstagram.com")
+        || l.contains("//static.xx.fbcdn.net")
+        || l.contains("//static.whatsapp.net")
+}
+
+/// Facebook / TikTok inline player fields, best quality first.
+fn social_json_stream(html: &str) -> Option<String> {
+    const KEYS: [&str; 11] = [
+        "browser_native_hd_url",
+        "playable_url_quality_hd",
+        "hd_src_no_ratelimit",
+        "hd_src",
+        "browser_native_sd_url",
+        "playable_url",
+        "sd_src_no_ratelimit",
+        "sd_src",
+        "playAddr",
+        "downloadAddr",
+        "video_url",
+    ];
+    for key in KEYS {
+        if let Some(u) = json_string_field(html, key) {
+            if u.starts_with("http") && has_direct_ext(&u) && !is_site_asset(&u) {
+                return Some(with_ratebypass(&u));
+            }
+        }
+    }
+    None
+}
+
+/// Tube-player quality lists: `"mediaDefinitions":[{"videoUrl":…,"quality":720},…]`
+/// — pick the highest-quality direct file (remote playlist entries skipped).
+fn media_definitions_stream(html: &str) -> Option<String> {
+    let key = "\"mediaDefinitions\"";
+    let mut search = html;
+    let mut best: Option<(u32, String)> = None;
+    while let Some(pos) = search.find(key) {
+        let end = (pos + 65536).min(search.len());
+        let mut s = &search[pos..end];
+        while let Some(q) = s.find("\"videoUrl\"") {
+            let slice = &s[q..];
+            let Some(u) = json_string_field(slice, "videoUrl") else { break };
+            let obj = &slice[..slice.len().min(800)];
+            let quality = obj
+                .find("\"quality\"")
+                .and_then(|i| {
+                    let r = &obj[i + 9..];
+                    let digits: String = r
+                        .chars()
+                        .skip_while(|c| !c.is_ascii_digit())
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect();
+                    digits.parse::<u32>().ok()
+                })
+                .unwrap_or(0);
+            if has_direct_ext(&u) && !u.contains("get_media") && !is_site_asset(&u) {
+                if best.as_ref().map_or(true, |(b, _)| quality > *b) {
+                    best = Some((quality, u));
+                }
+            }
+            s = &s[q + 10..];
+        }
+        search = &search[pos + key.len()..];
+    }
+    best.map(|(_, u)| with_ratebypass(&u))
+}
+
+/// Argument of a `name('...')` / `name("...")` call in a page body.
+fn fn_call_arg(html: &str, name: &str) -> Option<String> {
+    let pos = html.find(name)?;
+    let rest = html[pos + name.len()..].trim_start();
+    let rest = rest.strip_prefix('(')?.trim_start();
+    let quote = rest.chars().next()?;
+    if quote != '\'' && quote != '"' {
+        return None;
+    }
+    let body = &rest[quote.len_utf8()..];
+    let end = body.find(quote)?;
+    let u = json_unescape(&body[..end]);
+    if u.starts_with("http") {
+        Some(u)
+    } else {
+        None
+    }
+}
+
+/// Old-style tube players: `setVideoUrlHigh('…')` / `setVideoUrlLow('…')`.
+fn set_video_url_stream(html: &str) -> Option<String> {
+    for name in ["setVideoUrlHigh", "setVideoUrlLow"] {
+        if let Some(u) = fn_call_arg(html, name) {
+            if has_direct_ext(&u) && !is_site_asset(&u) {
+                return Some(with_ratebypass(&u));
+            }
+        }
+    }
+    None
+}
+
+/// Last-resort HLS: a playlist the page declares (named JSON keys, a
+/// setVideoHLS call, or any .m3u8 URL in the body). The download engine
+/// routes playlist URLs to its HLS recorder.
+fn hls_stream(html: &str) -> Option<String> {
+    for key in ["hlsUrl", "hls_url", "manifestUrl", "hls"] {
+        if let Some(u) = json_string_field(html, key) {
+            if u.contains(".m3u8") && !is_site_asset(&u) {
+                return Some(u);
+            }
+        }
+    }
+    if let Some(u) = fn_call_arg(html, "setVideoHLS") {
+        return Some(u);
+    }
+    // Note: no bare .m3u8 sweep — a playlist that is merely linked or
+    // meta-tagged is not the page's stream (the scan stays progressive
+    // unless the player itself declares the playlist, above).
+    None
+}
+
 fn resolve_generic(html: &str, page_url: &str) -> Option<(String, String)> {
     let title = social_post_caption(html, page_url)
         .or_else(|| meta_content(html, "og:title").filter(|t| !is_placeholder_title(t)))
@@ -2945,6 +3291,19 @@ fn resolve_generic(html: &str, page_url: &str) -> Option<(String, String)> {
             return Some((with_ratebypass(&u), with_ext(&title, &e)));
         }
     }
+    // Inline player JSON (social fields, tube quality lists, setVideoUrl*).
+    if let Some(u) = social_json_stream(html) {
+        let e = guess_ext(&u);
+        return Some((u, with_ext(&title, &e)));
+    }
+    if let Some(u) = media_definitions_stream(html) {
+        let e = guess_ext(&u);
+        return Some((u, with_ext(&title, &e)));
+    }
+    if let Some(u) = set_video_url_stream(html) {
+        let e = guess_ext(&u);
+        return Some((u, with_ext(&title, &e)));
+    }
     // bare https://....mp4/.webm/.mkv/.mp3 links
     for ext in [".mp4", ".webm", ".mkv", ".mov", ".mp3", ".m4a"] {
         let mut search = html;
@@ -2983,6 +3342,9 @@ fn resolve_generic(html: &str, page_url: &str) -> Option<(String, String)> {
             }
             search = &search[p + ext.len()..];
         }
+    }
+    if let Some(u) = hls_stream(html) {
+        return Some((u, with_ext(&title, ".mp4")));
     }
     let _ = page_url;
     None
@@ -9039,6 +9401,40 @@ fn engine_error(url: &str, e: hdm_engine::Error) -> anyhow::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    #[test]
+    fn generic_scan_social_and_tube_fields() {
+        // Facebook inline player field (escaped slashes, like the real page)
+        let fb = r#"{"browser_native_hd_url":"https:\/\/cdn.example\/v_hd.mp4?x=1","browser_native_sd_url":"https:\/\/cdn.example\/v_sd.mp4"}"#;
+        let (u, _) = resolve_generic(fb, "https://www.facebook.com/watch/?v=1").expect("fb hd");
+        assert_eq!(u, "https://cdn.example/v_hd.mp4?x=1");
+        // TikTok playAddr
+        let tt = r#"{"playAddr":"https://cdn.example/tt.mp4"}"#;
+        let (u, _) = resolve_generic(tt, "https://www.tiktok.com/@a/video/1").expect("tiktok");
+        assert_eq!(u, "https://cdn.example/tt.mp4");
+        // mediaDefinitions: highest quality wins
+        let md = r#"{"mediaDefinitions":[{"format":"mp4","videoUrl":"https://cdn.example/480.mp4","quality":"480"},{"format":"mp4","videoUrl":"https://cdn.example/1080.mp4","quality":"1080"}]}"#;
+        let (u, _) = resolve_generic(md, "https://tube.example/view/1").expect("mediadef");
+        assert_eq!(u, "https://cdn.example/1080.mp4");
+        // setVideoUrlHigh
+        let sv = "<script>html5player.setVideoUrlHigh('https://cdn.example/high.mp4');</script>";
+        let (u, _) = resolve_generic(sv, "https://tube.example/v/2").expect("setvideo");
+        assert_eq!(u, "https://cdn.example/high.mp4");
+        // HLS-only page: playlist as last resort
+        let hls = r#"{"hls":"https://cdn.example/stream.m3u8"}"#;
+        let (u, _) = resolve_generic(hls, "https://site.example/watch/3").expect("hls");
+        assert_eq!(u, "https://cdn.example/stream.m3u8");
+        // Site assets (Meta interface files) are filtered by the field scan
+        assert!(is_site_asset("https://static.xx.fbcdn.net/rsrc.php/v4/y1/r/x.mp4"));
+        assert!(!is_site_asset("https://cdn.example/v.mp4"));
+    }
+
+    #[test]
+    fn twitter_token_shape() {
+        let tok = twitter_token("1760000000000000000").expect("token");
+        assert!(!tok.is_empty() && tok.chars().all(|c| c.is_ascii_alphanumeric()));
+    }
 
     #[test]
     fn sanitize_names() {

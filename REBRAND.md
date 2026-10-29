@@ -31,3 +31,28 @@ GitHub username in all files, e.g.:
 `grep -rl hasan8994444-max . | xargs sed -i 's/hasan8994444-max/<username>/g'`
 Until then the in-app update check simply reports that it cannot reach
 releases — everything else works fully offline.
+
+## Universal page resolver (added Oct 30, 2026)
+
+Prompted by sites whose videos the first release missed, HDM's page
+resolver was extended with the extraction *patterns* used by mobile
+downloaders (the technique was studied in Hasan's HTube app — an
+Android, GPL-3.0 project — and re-implemented here from scratch in
+original Rust; no GPL code was copied, so HDM stays MIT):
+
+- Social player JSON fields, HD first: `browser_native_hd_url`,
+  `playable_url_quality_hd`, `hd_src`/`sd_src` (+ `_no_ratelimit`),
+  `playable_url`, TikTok `playAddr`/`downloadAddr`, `video_url` —
+  with site interface assets (rsrc.php / static CDNs) filtered out.
+- `mediaDefinitions` quality lists (highest quality wins) and
+  `setVideoUrlLow/High` player calls from tube sites.
+- Player-declared HLS only (`hlsUrl`/`hls`/`manifestUrl` keys,
+  `setVideoHLS`) — a merely linked or meta-tagged playlist is still
+  not treated as the page's stream.
+- X / Twitter: the public tweet-widget endpoint (base36 token) picks
+  the highest-bitrate MP4 variant.
+- Reddit: the public embed page reveals the `v.redd.it` id, whose
+  HLS playlist is then downloaded and muxed like any other HLS.
+- Mobile retry: if the desktop scan finds nothing, the page is
+  fetched once more under a mobile user-agent, because many sites
+  only hand their player JSON to mobile browsers.
