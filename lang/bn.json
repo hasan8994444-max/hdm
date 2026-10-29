@@ -57,7 +57,7 @@
   "Save": "সংরক্ষণ",
   "Cancel": "বাতিল",
   "Fonts, radius and accent stay identical — only the palette changes.": "ফন্ট, কোণ ও অ্যাকসেন্ট একই থাকে — শুধু রঙ বদলায়।",
-  "Takes effect the next time Download Craft starts. To add a language, put <code>.json in the lang folder next to the program; missing texts are listed in lang/<code>.missing.json in the settings folder.": "Download Craft পরের বার চালু হলে কার্যকর হবে। নতুন ভাষা যোগ করতে প্রোগ্রামের পাশের lang ফোল্ডারে <code>.json রাখুন; অনুবাদ বাকি থাকা লেখাগুলো সেটিংস ফোল্ডারের lang/<code>.missing.json-এ থাকে।",
+  "Takes effect the next time HDM starts. To add a language, put <code>.json in the lang folder next to the program; missing texts are listed in lang/<code>.missing.json in the settings folder.": "HDM পরের বার চালু হলে কার্যকর হবে। নতুন ভাষা যোগ করতে প্রোগ্রামের পাশের lang ফোল্ডারে <code>.json রাখুন; অনুবাদ বাকি থাকা লেখাগুলো সেটিংস ফোল্ডারের lang/<code>.missing.json-এ থাকে।",
   "Download complete": "ডাউনলোড সম্পন্ন",
   "Don't show this dialog again": "এই উইন্ডো আর দেখাবেন না",
   "Address": "ঠিকানা",

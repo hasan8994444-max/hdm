@@ -97,7 +97,7 @@ pub fn request_quit() {
 }
 pub fn install_menu_handler() {}
 pub fn tooltip() -> &'static str {
-    "Download Craft"
+    "HDM"
 }
 pub fn set_titlebar_dark(_: bool) {}
 pub fn set_titlebar_color(_: (u8, u8, u8)) {}

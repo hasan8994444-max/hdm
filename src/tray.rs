@@ -39,12 +39,12 @@ static TITLEBAR_RGB: AtomicI32 = AtomicI32::new(-1);
 /// the foreground lock reliably, so the request is parked here until `update`.
 static SHOW_REQUESTED: AtomicBool = AtomicBool::new(false);
 
-const TRAY_TIP: &str = "Download Craft";
+const TRAY_TIP: &str = "HDM";
 /// Auto-reset event used to wake the running manager when the user launches
 /// the app again (Start menu, pinned shortcut, taskbar). A second process
 /// cannot raise another process' window reliably once it is parked, so it
 /// signals this event and the first instance restores itself.
-const SHOW_EVENT: &str = "Local\\DownloadCraft-Show";
+const SHOW_EVENT: &str = "Local\\HDM-Show";
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()

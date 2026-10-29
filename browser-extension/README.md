@@ -12,7 +12,7 @@ Restore a dismissed bar through the extension popup's Show video download button
 > `python3 scripts/package_extensions.py` builds both extension variants on any OS.
 > Firefox has an additional attachment-response handoff; the X follows fullscreen.
 
-# Browser extension — "Send to Download Craft" (zero-config)
+# Browser extension — "Send to HDM" (zero-config)
 
 Every download is captured automatically — no pasting IDs,
 no per-file clicks.
@@ -40,16 +40,16 @@ and the promise-style API calls go through `api` (`browser` when it exists,
 
        powershell -ExecutionPolicy Bypass -File browser-extension/build-firefox.ps1
 
-   That writes `DownloadCraft-Firefox-<version>.xpi` in the repository root.
+   That writes `HDM-Firefox-<version>.xpi` in the repository root.
    Validate it with Mozilla's own linter if you like:
 
-       npx web-ext lint --source-dir "%TEMP%\download-craft-firefox-stage"
+       npx web-ext lint --source-dir "%TEMP%\hdm-firefox-stage"
 
 2. In Firefox open `about:debugging#/runtime/this-firefox`, press
    **Load Temporary Add-on…** and pick the `.xpi` (or the staged folder's
-   `manifest.json`). The add-on appears as *Send to Download Craft* with the
-   ID `send-to-download-craft@example` — the same ID the app allows in
-   `%APPDATA%\download_craft\native-host\firefox.json`.
+   `manifest.json`). The add-on appears as *Send to HDM* with the
+   ID `send-to-hdm@example` — the same ID the app allows in
+   `%APPDATA%\hdm\native-host\firefox.json`.
 3. Then do step 2 below (**Install firefox** in Settings).
 
 A temporary add-on disappears when Firefox closes: that is Firefox's signing
@@ -66,16 +66,16 @@ If captures stop reaching the app, check `about:addons` → this extension →
 allowed: Firefox lets the user revoke host permissions per extension.
 
 ## 2. Connect it from the app (once)
-1. Run Download Craft → **Settings** → **Browser integration**.
+1. Run HDM → **Settings** → **Browser integration**.
 2. Click **Install Chrome manifest** (or Edge / Firefox).
 3. That's it — no IDs, no packets to send by hand.
 
 ## 3. Use it
 - Download anything normally in the browser — the extension cancels the
-  browser's own download and Download Craft takes over automatically.
+  browser's own download and HDM takes over automatically.
 - If the app isn't reachable, the file falls back to a normal browser
   download so nothing is ever lost (badge shows `!`).
-- Right-click any link / video / audio → **Download with Download Craft**.
+- Right-click any link / video / audio → **Download with HDM**.
 - Toolbar icon: toggle automatic capture, paste a URL, or pick from the
   files and videos detected on the current page.
 - Firefox: build + load the `.xpi` as described in **1b** above.
@@ -124,7 +124,7 @@ URLs that server-side fetching from a flagged network cannot get.
 
 ## After updating the app or extension
 
-1. In Download Craft → **Settings** → **Browser integration**, reinstall
+1. In HDM → **Settings** → **Browser integration**, reinstall
    the host for your browser (this also cleans up legacy registrations).
 2. In `chrome://extensions`, hit **reload** on the unpacked extension.
    In Firefox, rebuild the `.xpi` (see **1b**) and load it again — temporary

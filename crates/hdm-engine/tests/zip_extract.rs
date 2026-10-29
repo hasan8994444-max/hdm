@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use downloadcraft_engine::zip::{extract_remote, list_remote};
-use downloadcraft_engine::RequestFn;
+use hdm_engine::zip::{extract_remote, list_remote};
+use hdm_engine::RequestFn;
 
 /// A ZIP with one stored and one deflated file.
 fn make_zip(files: &[(&str, &[u8], bool)]) -> Vec<u8> {

@@ -1,9 +1,9 @@
-# Download Craft 0.9.12
+# HDM 0.9.12
 
 ## What's new
 
 **Setting up**
-- **Get ready**: a small window lists what Download Craft needs — the browser connection, the
+- **Get ready**: a small window lists what HDM needs — the browser connection, the
   browser extension, yt-dlp, FFmpeg and Deno — with what each is for and whether it is ready. Each has
   its own Install / Set up button, and **Fix everything** does them all. The extension row shows the
   three steps to add it, with **Open folder** and **Copy path**. The window opens at start-up only when
@@ -14,7 +14,7 @@
   downloads in the background. Press Download and it continues under the name and folder you chose,
   so the progress window opens partway through. Cancel deletes what was fetched. (Video pages and
   streams still start when you press Download.)
-- **"Download Craft isn't running"** now shows as soon as the Download File Info window opens, and
+- **"HDM isn't running"** now shows as soon as the Download File Info window opens, and
   goes away by itself once the app starts. A file already in the list starts and the window closes.
 - **Drag finished downloads out of the list** onto a folder, the desktop, a chat or a mail; select
   several to drag them together.
@@ -53,24 +53,24 @@ extension (chrome://extensions → reload) with the files from this release.
 
 ## Install
 
-**Windows 10/11.** Extract `DownloadCraft-0.9.12-windows-x64-portable.zip` and run `download_craft.exe` —
-nothing to install. Your queue and settings in `%APPDATA%\download_craft` carry over.
+**Windows 10/11.** Extract `HDM-0.9.12-windows-x64-portable.zip` and run `hdm.exe` —
+nothing to install. Your queue and settings in `%APPDATA%\hdm` carry over.
 
-**macOS 12+.** Unzip `DownloadCraft-0.9.12-macos-Universal.zip` and move `Download Craft.app` into
+**macOS 12+.** Unzip `HDM-0.9.12-macos-Universal.zip` and move `HDM.app` into
 Applications. This development build is not notarized: right-click → Open the first time.
 
 **Linux (x86-64, glibc 2.28+).**
-- Ubuntu, Debian, Mint, Pop!_OS: `sudo apt install ./downloadcraft_0.9.12_amd64.deb`
-- Fedora: `sudo dnf install ./downloadcraft-0.9.12-1.x86_64.rpm`
-- Other distributions: `DownloadCraft-0.9.12-x86_64.AppImage` (mark it executable; without FUSE run it
+- Ubuntu, Debian, Mint, Pop!_OS: `sudo apt install ./hdm_0.9.12_amd64.deb`
+- Fedora: `sudo dnf install ./hdm-0.9.12-1.x86_64.rpm`
+- Other distributions: `HDM-0.9.12-x86_64.AppImage` (mark it executable; without FUSE run it
   with `--appimage-extract-and-run`).
 
 **Browser extension (0.9.12).**
-- Chrome / Edge / Brave: extract `DownloadCraft-Chrome-0.9.12.zip`, open `chrome://extensions`, enable
+- Chrome / Edge / Brave: extract `HDM-Chrome-0.9.12.zip`, open `chrome://extensions`, enable
   Developer mode, **Load unpacked** → the `browser-extension` folder. Already installed? Press reload on
   the extension and refresh open tabs.
 - Firefox: `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** →
-  `DownloadCraft-Firefox-0.9.12.xpi` (unsigned).
+  `HDM-Firefox-0.9.12.xpi` (unsigned).
 - Then in the app: Settings → Browser Integration → **Install** for your browser.
 
 ## Media helpers

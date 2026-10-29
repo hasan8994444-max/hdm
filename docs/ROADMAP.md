@@ -1,4 +1,4 @@
-# Download Craft: what is still open
+# HDM: what is still open
 
 The one roadmap. It lists only what is not done yet. Everything else from the
 earlier engine, IDM-parity and extension roadmaps is built and in the code.
@@ -11,7 +11,7 @@ Updated 28 Oct 2026, for 0.9.12.
 
 | | Item | Notes |
 |---|---|---|
-| 🔴 | Firefox add-on ID | `browser-extension/manifest-firefox.json` and the Firefox host manifest in `src/app.rs` use `send-to-download-craft@example`. Change both to an address you own before the first AMO upload: AMO fixes the ID for good. |
+| 🔴 | Firefox add-on ID | `browser-extension/manifest-firefox.json` and the Firefox host manifest in `src/app.rs` use `send-to-hdm@example`. Change both to an address you own before the first AMO upload: AMO fixes the ID for good. |
 | 🟠 | Store IDs for Edge and Opera | Once the extension is listed there, add the IDs those stores assign to `STORE_EXTENSION_IDS` in `src/app.rs` (see `docs/STORE_LISTING.md`). |
 
 ## Not tested against the real thing yet

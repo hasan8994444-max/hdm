@@ -8,7 +8,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File build-firefox.ps1
 #
-# The result is DownloadCraft-Firefox-<version>.xpi next to the repository
+# The result is HDM-Firefox-<version>.xpi next to the repository
 # root, ready for about:debugging ("Load Temporary Add-on").
 
 param([string]$Out = "")
@@ -17,10 +17,10 @@ $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ver = (Get-Content (Join-Path $here "manifest-firefox.json") -Raw | ConvertFrom-Json).version
 if (-not $Out) {
-  $Out = Join-Path (Split-Path -Parent $here) "DownloadCraft-Firefox-$ver.xpi"
+  $Out = Join-Path (Split-Path -Parent $here) "HDM-Firefox-$ver.xpi"
 }
 
-$stage = Join-Path $env:TEMP "download-craft-firefox-stage"
+$stage = Join-Path $env:TEMP "hdm-firefox-stage"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path (Join-Path $stage "icons") -Force | Out-Null
 

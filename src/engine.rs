@@ -451,14 +451,14 @@ pub fn work_dir() -> Option<PathBuf> {
 
 /// Unfinished engine data for `dest`, in the temporary folder or next to it.
 pub fn has_partial(dest: &std::path::Path) -> bool {
-    downloadcraft_engine::has_partial(dest) || work_dir().is_some_and(|w| downloadcraft_engine::has_partial_in(dest, Some(&w)))
+    hdm_engine::has_partial(dest) || work_dir().is_some_and(|w| hdm_engine::has_partial_in(dest, Some(&w)))
 }
 
 /// Drop the engine's unfinished data for `dest` wherever it is.
 pub fn remove_partial(dest: &std::path::Path) {
-    downloadcraft_engine::remove_partial(dest);
+    hdm_engine::remove_partial(dest);
     if let Some(w) = work_dir() {
-        downloadcraft_engine::remove_partial_in(dest, Some(&w));
+        hdm_engine::remove_partial_in(dest, Some(&w));
     }
 }
 
@@ -469,12 +469,12 @@ pub fn remove_partial(dest: &std::path::Path) {
 pub fn move_partial(from: &std::path::Path, to: &std::path::Path) -> bool {
     let wd = work_dir();
     let mut pairs = vec![
-        (downloadcraft_engine::data_path(from), downloadcraft_engine::data_path(to)),
-        (downloadcraft_engine::journal_path(from), downloadcraft_engine::journal_path(to)),
+        (hdm_engine::data_path(from), hdm_engine::data_path(to)),
+        (hdm_engine::journal_path(from), hdm_engine::journal_path(to)),
     ];
     if let Some(w) = wd.as_deref() {
-        pairs.push((downloadcraft_engine::data_path_in(from, Some(w)), downloadcraft_engine::data_path_in(to, Some(w))));
-        pairs.push((downloadcraft_engine::journal_path_in(from, Some(w)), downloadcraft_engine::journal_path_in(to, Some(w))));
+        pairs.push((hdm_engine::data_path_in(from, Some(w)), hdm_engine::data_path_in(to, Some(w))));
+        pairs.push((hdm_engine::journal_path_in(from, Some(w)), hdm_engine::journal_path_in(to, Some(w))));
     }
     let mut moved = false;
     for (a, b) in pairs {
@@ -495,14 +495,14 @@ pub fn move_partial(from: &std::path::Path, to: &std::path::Path) -> bool {
 /// Every unfinished-data path of `dest` (for deleting leftovers).
 pub fn partial_paths(dest: &std::path::Path) -> Vec<PathBuf> {
     let mut v = vec![
-        downloadcraft_engine::data_path(dest),
-        downloadcraft_engine::journal_path(dest),
+        hdm_engine::data_path(dest),
+        hdm_engine::journal_path(dest),
         dest.with_extension("dcftp"),
         dest.with_extension("dcftpparts"),
     ];
     if let Some(w) = work_dir() {
-        v.push(downloadcraft_engine::data_path_in(dest, Some(&w)));
-        v.push(downloadcraft_engine::journal_path_in(dest, Some(&w)));
+        v.push(hdm_engine::data_path_in(dest, Some(&w)));
+        v.push(hdm_engine::journal_path_in(dest, Some(&w)));
     }
     v
 }
@@ -884,7 +884,7 @@ pub(crate) fn resume_offset(
     }
 }
 /// Shared token-bucket rate limiter: lives in the reusable engine crate.
-pub use downloadcraft_engine::RateLimiter;
+pub use hdm_engine::RateLimiter;
 
 /// Lock a mutex even when poisoned (a panicking holder must not cascade
 /// into every UI poll and engine task — take the guard anyway).
@@ -981,7 +981,7 @@ fn http_code_err(url: &str, code: u16) -> anyhow::Error {
             );
         }
         return final_err(
-            "server refused (403 Forbidden) — it likely needs login or cookies: open the page in your browser and capture it with the Download Craft extension".to_string(),
+            "server refused (403 Forbidden) — it likely needs login or cookies: open the page in your browser and capture it with the HDM extension".to_string(),
         );
     }
     if status == Some(reqwest::StatusCode::UNAUTHORIZED) {
@@ -1021,7 +1021,7 @@ pub(crate) fn explain_failure(raw: &str) -> Option<&'static str> {
         return Some("the server keeps redirecting (usually a login or cookie wall) — open the page in the browser and capture the download with the extension");
     }
     if low.contains("certificate") || low.contains("unknownissuer") || low.contains("invalid peer certificate") {
-        return Some("the site's security certificate is not valid (expired, self-signed or for another name) — Download Craft does not download from it");
+        return Some("the site's security certificate is not valid (expired, self-signed or for another name) — HDM does not download from it");
     }
     None
 }
@@ -1317,7 +1317,7 @@ pub async fn probe(
     opts: &EngineOpts,
     url: &str,
 ) -> (Option<u64>, bool, Option<String>, Option<String>) {
-    let dbg = std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok();
+    let dbg = std::env::var("HDM_DEBUG").is_ok();
     // A form (POST) download only exists as that POST: a GET/HEAD probe
     // would ask for something else (often the form page itself).
     if opts.browser.as_ref().is_some_and(|b| b.is_post()) {
@@ -1648,7 +1648,7 @@ pub async fn resolve_media(
         return None;
     }
     let hit = resolve_generic(&html, page_url);
-    if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+    if std::env::var("HDM_DEBUG").is_ok() {
         match &hit {
             Some((u, _)) => dbg_resolve("generic", u),
             None => eprintln!("[dbg] resolve: none"),
@@ -1658,7 +1658,7 @@ pub async fn resolve_media(
 }
 
 fn dbg_resolve(via: &str, url: &str) {
-    if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+    if std::env::var("HDM_DEBUG").is_ok() {
         let host = url::Url::parse(url)
             .map(|u| u.host_str().unwrap_or("?").to_string())
             .unwrap_or_else(|_| "?".to_string());
@@ -4126,7 +4126,7 @@ async fn fallback_chain(
     if shared.cancelled.load(Ordering::SeqCst) || err.to_string() == "cancelled" {
         return Err(err);
     }
-    let dbg = std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok();
+    let dbg = std::env::var("HDM_DEBUG").is_ok();
     let actual = mutex_guard(&shared.resolved_name).clone().map(|n| dest.with_file_name(n)).unwrap_or_else(|| dest.clone());
     let yt_page = if is_youtube_page(url) {
         Some(url.to_string())
@@ -4581,14 +4581,14 @@ async fn download_inner(
                 match download_with_ytdlp(&exe, &url, &dest, connections, &opts, &shared).await {
                     Ok(()) => return Ok(()),
                     Err(e) => {
-                        if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+                        if std::env::var("HDM_DEBUG").is_ok() {
                             eprintln!("[dbg] yt-dlp path skipped: {e:#}");
                         }
                     }
                 }
             }
             Err(e) => {
-                if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+                if std::env::var("HDM_DEBUG").is_ok() {
                     eprintln!("[dbg] yt-dlp unavailable: {e:#}");
                 }
             }
@@ -4620,7 +4620,7 @@ async fn download_inner(
                         shared.set_note(format!(
                             "captured file kept as-is: merging the page failed ({e:#}) - it may have no sound"
                         ));
-                        if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+                        if std::env::var("HDM_DEBUG").is_ok() {
                             eprintln!("[dbg] social page path skipped: {e:#}");
                         }
                     }
@@ -4630,7 +4630,7 @@ async fn download_inner(
                 shared.set_note(format!(
                     "captured file kept as-is: no yt-dlp for the audio merge ({e:#}) - it may have no sound"
                 ));
-                if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+                if std::env::var("HDM_DEBUG").is_ok() {
                     eprintln!("[dbg] social page path: yt-dlp unavailable: {e:#}");
                 }
             }
@@ -4669,7 +4669,7 @@ async fn download_inner(
                 // ffmpeg on completion instead of a small progressive file.
                 // Drop our dest claim first: download_adaptive takes its own.
                 if let Some(pair) = hit.pair_url.filter(|p| p.starts_with("http")) {
-                    if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+                    if std::env::var("HDM_DEBUG").is_ok() {
                         eprintln!("[dbg] pair video={}", url);
                         eprintln!("[dbg] pair audio={}", pair);
                     }
@@ -5918,7 +5918,7 @@ fn ffmpeg_local_path() -> Option<std::path::PathBuf> {
     let base = {
         std::path::PathBuf::from(std::env::var_os("LOCALAPPDATA")?)
     };
-    Some(base.join("download_craft").join("bin").join(FFMPEG_BIN))
+    Some(base.join("hdm").join("bin").join(FFMPEG_BIN))
     }
 }
 
@@ -6086,7 +6086,7 @@ async fn latest_release_tag(client: &reqwest::Client, repo: &str) -> Option<Stri
     let v: serde_json::Value = client
         .get(format!("https://api.github.com/repos/{repo}/releases/latest"))
         // GitHub's API rejects requests without a User-Agent.
-        .header(reqwest::header::USER_AGENT, format!("download_craft/{}", crate::model::APP_VERSION))
+        .header(reqwest::header::USER_AGENT, format!("hdm/{}", crate::model::APP_VERSION))
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
         .timeout(std::time::Duration::from_secs(15))
         .send()
@@ -6211,7 +6211,7 @@ async fn write_cookie_jar(cookie: &str, domain: &str) -> Result<Option<CookieJar
     for _ in 0..100 {
         let tag = NEXT.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "download_craft_cookies_{}_{tag}.txt",
+            "hdm_cookies_{}_{tag}.txt",
             std::process::id()
         ));
         let mut options = std::fs::OpenOptions::new();
@@ -6646,7 +6646,7 @@ fn phase_for_line(line: &str) -> Option<&'static str> {
 }
 
 /// Folder name for a helper's in-progress pieces, inside the save folder.
-const PARTS_DIR: &str = ".download_craft_parts";
+const PARTS_DIR: &str = ".hdm_parts";
 
 /// `(home, parts)` folders for a yt-dlp run saving to `dest`.
 fn ytdlp_dirs(dest: &std::path::Path) -> (PathBuf, PathBuf) {
@@ -8337,7 +8337,7 @@ async fn single_stream_once(
             }
         }
     };
-    if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+    if std::env::var("HDM_DEBUG").is_ok() {
         eprintln!(
             "[dbg] media status={} len={:?} range={:?} ctype={:?}",
             resp.status(),
@@ -8712,7 +8712,7 @@ async fn chunked_once(
     let resp = resp
         .error_for_status()
         .map_err(|e| http_status_err(url, e))?;
-    if std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok() {
+    if std::env::var("HDM_DEBUG").is_ok() {
         eprintln!(
             "[dbg] chunk range={offset}-{end} status={} len={:?}",
             resp.status(),
@@ -8825,7 +8825,7 @@ async fn chunked_once(
 }
 
 /// Multi-connection download through the reusable engine crate
-/// (`crates/downloadcraft-engine`): dynamic segmentation with work stealing,
+/// (`crates/hdm-engine`): dynamic segmentation with work stealing,
 /// one pre-allocated file, a crash-safe resume journal, throttling and
 /// connection-limit detection, expired-link refresh. This wrapper maps the
 /// app's options, pause/stop flags, progress view and errors onto it.
@@ -8840,7 +8840,7 @@ async fn segmented(
     shared: Arc<SharedState>,
     limiter: std::sync::Arc<RateLimiter>,
 ) -> Result<()> {
-    use downloadcraft_engine as dce;
+    use hdm_engine as dce;
     // Strict googlevideo edges 403 ranges above ~2 MiB: ask in windows.
     let strict = is_googlevideo_url(url);
     let config = dce::Config {
@@ -8895,7 +8895,7 @@ async fn post_download(
     opts: &EngineOpts,
     shared: &Arc<SharedState>,
 ) -> Result<()> {
-    use downloadcraft_engine as dce;
+    use hdm_engine as dce;
     let b = opts.browser.clone().unwrap_or_default();
     let body = crate::model::base64_decode(&b.body).ok_or_else(|| anyhow!("the form data could not be read"))?;
     let client = opts.build_client()?;
@@ -8935,15 +8935,15 @@ async fn post_download(
 /// Run one engine-crate download with the app's pause/stop flags bridged in
 /// and its progress bridged out; errors in the app's vocabulary.
 async fn run_dce(
-    mut dl: downloadcraft_engine::Downloader,
-    job: downloadcraft_engine::Job,
+    mut dl: hdm_engine::Downloader,
+    job: hdm_engine::Job,
     url: &str,
     total: u64,
     shared: &Arc<SharedState>,
     log: &str,
-) -> Result<downloadcraft_engine::Outcome> {
-    use downloadcraft_engine as dce;
-    let dbg = std::env::var("DOWNLOAD_CRAFT_DEBUG").is_ok();
+) -> Result<hdm_engine::Outcome> {
+    use hdm_engine as dce;
+    let dbg = std::env::var("HDM_DEBUG").is_ok();
     let key = log.to_string();
     dl = dl.on_event(Arc::new(move |e: &dce::Event| {
         if dbg {
@@ -8984,8 +8984,8 @@ async fn run_dce(
 /// Copy the engine's progress into the app's shared state and the app's
 /// pause/stop flags into the engine.
 fn sync_engine_progress(
-    progress: &downloadcraft_engine::Progress,
-    control: &downloadcraft_engine::Control,
+    progress: &hdm_engine::Progress,
+    control: &hdm_engine::Control,
     shared: &SharedState,
     total: u64,
 ) {
@@ -9016,8 +9016,8 @@ fn sync_engine_progress(
 
 /// Engine errors in the app's vocabulary: refusals stay final (no retry
 /// storms), throttling keeps the words the fallback ladder looks for.
-fn engine_error(url: &str, e: downloadcraft_engine::Error) -> anyhow::Error {
-    use downloadcraft_engine::Error as E;
+fn engine_error(url: &str, e: hdm_engine::Error) -> anyhow::Error {
+    use hdm_engine::Error as E;
     match e {
         E::Cancelled => anyhow!("cancelled"),
         E::Http { status, .. } => http_code_err(url, status),
@@ -9423,7 +9423,7 @@ mod tests {
         let shared = Arc::new(SharedState::new());
         let result = download(
             "https://vod.vimeocdn.com/v2/range/prot/token/v.mp4?range=0-99".to_string(),
-            std::env::temp_dir().join("downloadcraft-vimeo-fragment-guard.mp4"),
+            std::env::temp_dir().join("hdm-vimeo-fragment-guard.mp4"),
             1, EngineOpts::default(), shared.clone(),
         ).await;
         assert!(result.unwrap_err().to_string().contains("playback fragment"));
@@ -10073,7 +10073,7 @@ mod tests {
         lim.consume(10).await; // unlimited under override: returns fast
         // Empty checksum request is a no-op.
         let dir = std::env::temp_dir();
-        let p = dir.join("download_craft_checksum_test.bin");
+        let p = dir.join("hdm_checksum_test.bin");
         std::fs::write(&p, b"abc").unwrap();
         verify_checksum(&p, "").await.unwrap();
         // Known SHA-256 of "abc".
@@ -10739,7 +10739,7 @@ mod tests {
     #[test]
     fn quality_selection() {
         assert_eq!(chrome_major("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"), Some(126));
-        assert_eq!(chrome_major("download_craft/0.7.0"), None);
+        assert_eq!(chrome_major("hdm/0.7.0"), None);
         assert_eq!(chrome_major(""), None);
         assert_eq!(quality_cap("1080p"), Some(1080));
         assert_eq!(quality_cap("1080p60"), Some(1080));

@@ -1,10 +1,10 @@
 [package]
-name = "downloadcraft-engine"
+name = "hdm-engine"
 version = "0.1.0"
 edition = "2021"
-description = "Multi-connection HTTP download engine with dynamic segmentation (work stealing), crash-safe resume and link refresh — the engine behind Download Craft"
+description = "Multi-connection HTTP download engine with dynamic segmentation (work stealing), crash-safe resume and link refresh — the engine behind HDM"
 license = "MIT"
-repository = "https://github.com/hungry-detective/downloadcraft"
+repository = "https://github.com/HASAN-USERNAME/hdm"
 keywords = ["download", "http", "accelerator", "segmented", "resume"]
 categories = ["network-programming", "asynchronous"]
 readme = "README.md"

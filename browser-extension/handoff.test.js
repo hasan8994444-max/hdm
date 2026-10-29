@@ -11,7 +11,7 @@ function harness(accept=true, cancelFails=false, cfg={autoCapture:true,minSizeKB
   const context={ console, Map, Object, Promise,
     settings:async()=>cfg, hostBlocked:()=>false, freshSeen:()=>false,
     skipped:(u)=>skips.has(u), typeAllowed:(c,n,u)=>!c.captureTypes || c.captureTypes.split(' ').some(t=>String(n||u).endsWith('.'+t)),
-    DCBridge:{browserContext:()=>ctx},
+    HDMBridge:{browserContext:()=>ctx},
     sendToHost:async(...args)=>{calls.push(['host',...args]);return accept;},
     syncBrowserDownloadUI:async()=>{},setBadge:()=>{},markSeen:(...a)=>calls.push(['seen',...a]),
     hostOk:false,lastFallbackError:'',

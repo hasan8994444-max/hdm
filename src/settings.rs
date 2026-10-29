@@ -642,7 +642,7 @@ pub fn run() -> eframe::Result<()> {
     // Separate OS window (own process via `--settings`): never embedded in
     // the main GUI. 640 wide is the concept's window width.
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("Download Craft Settings")
+        .with_title("HDM Settings")
         .with_inner_size([640.0, 520.0])
         .with_min_inner_size([600.0, 430.0])
         .with_resizable(true);
@@ -2487,7 +2487,7 @@ impl SettingsApp {
                     }
                 });
             ui.add_space(4.0);
-            hint(ui, "Takes effect the next time Download Craft starts. To add a language, put <code>.json in the lang folder next to the program; missing texts are listed in lang/<code>.missing.json in the settings folder.");
+            hint(ui, "Takes effect the next time HDM starts. To add a language, put <code>.json in the lang folder next to the program; missing texts are listed in lang/<code>.missing.json in the settings folder.");
         });
 
         // ---- Window behaviour ----
@@ -2630,7 +2630,7 @@ impl SettingsApp {
                 w,
                 true,
                 false,
-                "default (Download Craft)",
+                "default (HDM)",
             );
             let mut c = field_row(ui, "proxy", "Proxy", None, None);
             let w = c.available_width();
@@ -3598,7 +3598,7 @@ impl SettingsApp {
                             loc_status(
                                 ui,
                                 &if ok {
-                                    format!("{label} — linked to Download Craft")
+                                    format!("{label} — linked to HDM")
                                 } else {
                                     format!("{label} — not linked yet")
                                 },
@@ -3751,12 +3751,12 @@ impl SettingsApp {
     fn pane_updates(&mut self, ui: &mut Ui) {
         let t = tok();
         h2(ui, "Updates");
-        hint(ui, "Download Craft itself, and the helpers it keeps for you.");
+        hint(ui, "HDM itself, and the helpers it keeps for you.");
         ui.add_space(10.0);
 
         let mut open_updates = self.open_updates;
         let mut check = self.s.update_check_on;
-        card(ui, "Download Craft", Some(&format!("v{}", crate::model::APP_VERSION)), &mut open_updates, |ui| {
+        card(ui, "HDM", Some(&format!("v{}", crate::model::APP_VERSION)), &mut open_updates, |ui| {
             switch_row(
                 ui,
                 "update_check_on",

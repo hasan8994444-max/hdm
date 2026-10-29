@@ -94,7 +94,7 @@ mod imp {
         let mut have = std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
 
         unsafe {
-            let agent = wide(if opts.user_agent.is_empty() { "Download Craft" } else { &opts.user_agent });
+            let agent = wide(if opts.user_agent.is_empty() { "HDM" } else { &opts.user_agent });
             let session = H(WinHttpOpen(agent.as_ptr(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, std::ptr::null(), std::ptr::null(), 0));
             if session.0.is_null() {
                 return Err(last_error("WinHttpOpen"));

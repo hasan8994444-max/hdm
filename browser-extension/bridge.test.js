@@ -30,9 +30,9 @@ function load() {
   };
   const ctx = { chrome, console, setTimeout, clearTimeout, TextEncoder, URL, btoa: (s) => Buffer.from(s, 'binary').toString('base64'), Date, Map, Set, Promise, Object, String, Array, Number, JSON, Uint8Array };
   vm.createContext(ctx);
-  vm.runInContext(source + '\nthis.DCBridge = DCBridge;', ctx);
-  ctx.DCBridge.start('com.download_craft');
-  return { B: ctx.DCBridge, listeners, posted, port: () => portMsg, gone: () => portGone };
+  vm.runInContext(source + '\nthis.HDMBridge = HDMBridge;', ctx);
+  ctx.HDMBridge.start('com.hdm');
+  return { B: ctx.HDMBridge, listeners, posted, port: () => portMsg, gone: () => portGone };
 }
 
 const dec = (b64) => Buffer.from(b64, 'base64').toString('utf8');

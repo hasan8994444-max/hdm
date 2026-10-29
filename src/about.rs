@@ -1,4 +1,4 @@
-//! About & Updates — its own small window (`download_craft.exe --about`),
+//! About & Updates — its own small window (`hdm.exe --about`),
 //! so it is never clipped by the main window.
 //!
 //! The main window owns updating (checking, downloading, installing,
@@ -19,7 +19,9 @@ use std::time::{Duration, Instant};
 const AW: f32 = 520.0;
 /// Opening height; the window then fits itself to its content.
 const AH: f32 = 560.0;
-const REPO: &str = "https://github.com/hungry-detective/downloadcraft";
+const REPO: &str = "https://github.com/HASAN-USERNAME/hdm";
+/// Upstream project HDM is based on (MIT) — credit stays visible in About.
+const UPSTREAM: &str = "https://github.com/hungry-detective/downloadcraft";
 
 /// Keep what the About window shows about the newest release: its tag, page
 /// and the first few headline points of its notes.
@@ -171,7 +173,7 @@ pub fn run() -> eframe::Result<()> {
         win_h: AH,
     };
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("About Download Craft")
+        .with_title("About HDM")
         .with_inner_size([AW, AH])
         .with_resizable(false)
         .with_decorations(false)
@@ -295,11 +297,11 @@ impl AboutApp {
         p.line_segment([egui::pos2(c.x, c.y - 7.0), egui::pos2(c.x, c.y + 5.0)], egui::Stroke::new(2.4, t.primary));
         p.line_segment([egui::pos2(c.x - 5.0, c.y), egui::pos2(c.x, c.y + 5.5)], egui::Stroke::new(2.4, t.primary));
         p.line_segment([egui::pos2(c.x + 5.0, c.y), egui::pos2(c.x, c.y + 5.5)], egui::Stroke::new(2.4, t.primary));
-        p.text(egui::pos2(tile.max.x + 16.0, y + 20.0), egui::Align2::LEFT_CENTER, "Download Craft", semi(21.0), t.txt);
+        p.text(egui::pos2(tile.max.x + 16.0, y + 20.0), egui::Align2::LEFT_CENTER, "HDM", semi(21.0), t.txt);
         p.text(
             egui::pos2(tile.max.x + 16.0, y + 44.0),
             egui::Align2::LEFT_CENTER,
-            format!("Version {} · Free and open source · MIT", crate::model::APP_VERSION),
+            format!("Version {} · by Hasan · Free and open source · MIT", crate::model::APP_VERSION),
             reg(12.5),
             t.dim,
         );
@@ -474,6 +476,7 @@ impl AboutApp {
             ("Release notes", format!("{REPO}/releases")),
             ("Report a problem", format!("{REPO}/issues")),
             ("Licenses", format!("{REPO}/blob/master/NOTICE.md")),
+            ("Upstream", UPSTREAM.to_string()),
         ] {
             let lw = label_width(&p, label, &reg(12.5));
             let r = egui::Rect::from_min_size(egui::pos2(lx, y - 9.0), egui::vec2(lw, 18.0));
@@ -532,7 +535,7 @@ mod tests {
         let v = serde_json::json!({
             "tag_name": "v0.9.12",
             "html_url": "https://h/r",
-            "body": "# Download Craft 0.9.12\n\n**App**\n- **Updates itself**: when a new release…\n- **Ready on first start**: yt-dlp…\n- Plain point\n- Fourth\n"
+            "body": "# HDM 0.9.12\n\n**App**\n- **Updates itself**: when a new release…\n- **Ready on first start**: yt-dlp…\n- Plain point\n- Fourth\n"
         });
         // Written to the config folder; parse the same way as a check.
         let body = v["body"].as_str().unwrap();

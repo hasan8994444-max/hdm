@@ -1237,60 +1237,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
-name = "download_craft"
-version = "0.9.12"
-dependencies = [
- "ab_glyph",
- "anyhow",
- "arboard",
- "cc",
- "chrono",
- "clap",
- "dirs 5.0.1",
- "downloadcraft-engine",
- "eframe",
- "egui",
- "flate2",
- "futures-util",
- "image",
- "md-5",
- "notify-rust",
- "raw-window-handle",
- "rcgen",
- "reqwest",
- "rfd",
- "rustls",
- "rustls-native-certs",
- "rustybuzz",
- "serde",
- "serde_json",
- "sevenz-rust2",
- "sha2 0.10.9",
- "shlex",
- "tokio",
- "tokio-rustls",
- "tray-icon",
- "unicode-segmentation",
- "unrar",
- "url",
- "windows-sys 0.61.2",
- "zip",
-]
-
-[[package]]
-name = "downloadcraft-engine"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "futures-util",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "windows-sys 0.61.2",
-]
-
-[[package]]
 name = "dpi"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2144,6 +2090,60 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+
+[[package]]
+name = "hdm"
+version = "0.9.12"
+dependencies = [
+ "ab_glyph",
+ "anyhow",
+ "arboard",
+ "cc",
+ "chrono",
+ "clap",
+ "dirs 5.0.1",
+ "eframe",
+ "egui",
+ "flate2",
+ "futures-util",
+ "hdm-engine",
+ "image",
+ "md-5",
+ "notify-rust",
+ "raw-window-handle",
+ "rcgen",
+ "reqwest",
+ "rfd",
+ "rustls",
+ "rustls-native-certs",
+ "rustybuzz",
+ "serde",
+ "serde_json",
+ "sevenz-rust2",
+ "sha2 0.10.9",
+ "shlex",
+ "tokio",
+ "tokio-rustls",
+ "tray-icon",
+ "unicode-segmentation",
+ "unrar",
+ "url",
+ "windows-sys 0.61.2",
+ "zip",
+]
+
+[[package]]
+name = "hdm-engine"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "futures-util",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "heck"

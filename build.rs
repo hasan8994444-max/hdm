@@ -66,7 +66,7 @@ fn windows_resources() -> Result<(), String> {
             .unwrap_or(0);
     }
     let (a, b, c, d) = (nums[0], nums[1], nums[2], nums[3]);
-    let product = "Download Craft";
+    let product = "HDM";
     let description = format!("{product} - Download Manager");
 
     let scratch = scratch_dir()?;

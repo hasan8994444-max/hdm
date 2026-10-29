@@ -14,24 +14,24 @@ REPO=Path(__file__).resolve().parents[1]
 VERSION=(REPO/'VERSION').read_text().strip()
 DESKTOP='''[Desktop Entry]
 Type=Application
-Name=Download Craft
+Name=HDM
 Comment=Download manager with browser capture
-Exec=download_craft
-Icon=com.downloadcraft.app
+Exec=hdm
+Icon=com.hdm.app
 Terminal=false
 Categories=Network;FileTransfer;
 StartupNotify=true
 '''
 
 def install_tree(root,binary):
-    app=root/'usr/lib/downloadcraft';app.mkdir(parents=True)
-    shutil.copy2(binary,app/'download_craft');(app/'download_craft').chmod(0o755)
+    app=root/'usr/lib/hdm';app.mkdir(parents=True)
+    shutil.copy2(binary,app/'hdm');(app/'hdm').chmod(0o755)
     stage_extensions(REPO,app)
     bindir=root/'usr/bin';bindir.mkdir(parents=True)
-    (bindir/'download_craft').symlink_to('../lib/downloadcraft/download_craft')
-    desktop=root/'usr/share/applications/com.downloadcraft.app.desktop';desktop.parent.mkdir(parents=True);desktop.write_text(DESKTOP)
-    icon=root/'usr/share/icons/hicolor/256x256/apps/com.downloadcraft.app.png';icon.parent.mkdir(parents=True);shutil.copy2(REPO/'assets/icon.png',icon)
-    docs=root/'usr/share/doc/downloadcraft';docs.mkdir(parents=True)
+    (bindir/'hdm').symlink_to('../lib/hdm/hdm')
+    desktop=root/'usr/share/applications/com.hdm.app.desktop';desktop.parent.mkdir(parents=True);desktop.write_text(DESKTOP)
+    icon=root/'usr/share/icons/hicolor/256x256/apps/com.hdm.app.png';icon.parent.mkdir(parents=True);shutil.copy2(REPO/'assets/icon.png',icon)
+    docs=root/'usr/share/doc/hdm';docs.mkdir(parents=True)
     for name in ['LICENSE','PORTABLE-BUILDS.md','RELEASE-NOTES.md']:shutil.copy2(REPO/name,docs/name)
     for item in (REPO/'assets/fonts').glob('OFL-*.txt'):shutil.copy2(item,docs/item.name)
     shutil.copy2(REPO/'NOTICE.md',docs/'NOTICE.md')
@@ -50,33 +50,33 @@ def main():
     versions={tuple(map(int,v.split('.'))) for v in re.findall(r'GLIBC_([0-9.]+)',symbols)}
     maximum=max(versions)
     if maximum>(2,28):raise SystemExit(f'Binary needs glibc {maximum}; build with cargo zigbuild --target x86_64-unknown-linux-gnu.2.28')
-    with tempfile.TemporaryDirectory(prefix='downloadcraft-linux-') as temp:
+    with tempfile.TemporaryDirectory(prefix='hdm-linux-') as temp:
         temp=Path(temp);root=temp/'root';install_tree(root,binary)
         control=root/'DEBIAN';control.mkdir()
-        (control/'control').write_text(f'''Package: downloadcraft
+        (control/'control').write_text(f'''Package: hdm
 Version: {VERSION}
 Section: net
 Priority: optional
 Architecture: amd64
-Maintainer: Download Craft contributors <noreply@downloadcraft.local>
-Homepage: https://github.com/hungry-detective/downloadcraft
+Maintainer: HDM contributors <noreply@hdm.local>
+Homepage: https://github.com/HASAN-USERNAME/hdm
 Depends: libc6 (>= 2.28), libgcc-s1, libx11-6, libxcb1, libxkbcommon0, libgl1, libwayland-client0, xdg-utils
 Recommends: libglib2.0-bin
-Description: Download Craft desktop download manager
+Description: HDM desktop download manager
  Download manager with Chrome, Brave and Firefox integration, media download
  support, resumable transfers and per-user helper installation.
 ''')
-        deb=a.output/f'downloadcraft_{VERSION}_amd64.deb'
+        deb=a.output/f'hdm_{VERSION}_amd64.deb'
         subprocess.run(['dpkg-deb','--root-owner-group','--build',str(root),str(deb)],check=True)
         shutil.rmtree(control)
         top=temp/'rpm';(top/'SPECS').mkdir(parents=True)
-        spec=top/'SPECS/downloadcraft.spec'
-        spec.write_text(f'''Name: downloadcraft
+        spec=top/'SPECS/hdm.spec'
+        spec.write_text(f'''Name: hdm
 Version: {VERSION}
 Release: 1
 Summary: Desktop download manager with browser capture
 License: MIT AND OFL-1.1
-URL: https://github.com/hungry-detective/downloadcraft
+URL: https://github.com/HASAN-USERNAME/hdm
 BuildArch: x86_64
 AutoReqProv: no
 Requires: glibc >= 2.28, libgcc, libX11, libxcb, libxkbcommon, mesa-libGL, wayland-libs, xdg-utils
@@ -84,31 +84,31 @@ Requires: glibc >= 2.28, libgcc, libX11, libxcb, libxkbcommon, mesa-libGL, wayla
 %global _build_id_links none
 %global __os_install_post %{{nil}}
 %description
-Download Craft desktop download manager with Chrome, Brave and Firefox capture.
+HDM desktop download manager with Chrome, Brave and Firefox capture.
 %install
 mkdir -p %{{buildroot}}
 cp -a "{root}/usr" %{{buildroot}}/
 %files
-/usr/bin/download_craft
-/usr/lib/downloadcraft
-/usr/share/applications/com.downloadcraft.app.desktop
-/usr/share/icons/hicolor/256x256/apps/com.downloadcraft.app.png
-%doc /usr/share/doc/downloadcraft
+/usr/bin/hdm
+/usr/lib/hdm
+/usr/share/applications/com.hdm.app.desktop
+/usr/share/icons/hicolor/256x256/apps/com.hdm.app.png
+%doc /usr/share/doc/hdm
 ''')
         subprocess.run([a.rpmbuild,'--define',f'_topdir {top}','--define','_binary_payload w9.gzdio','-bb',str(spec)],check=True)
         rpm=next((top/'RPMS').rglob('*.rpm'));shutil.copy2(rpm,a.output/rpm.name)
-        appdir=temp/'DownloadCraft.AppDir';shutil.copytree(root,appdir,symlinks=True)
-        (appdir/'com.downloadcraft.app.desktop').write_text(DESKTOP)
-        shutil.copy2(REPO/'assets/icon.png',appdir/'com.downloadcraft.app.png')
-        (appdir/'.DirIcon').symlink_to('com.downloadcraft.app.png')
+        appdir=temp/'HDM.AppDir';shutil.copytree(root,appdir,symlinks=True)
+        (appdir/'com.hdm.app.desktop').write_text(DESKTOP)
+        shutil.copy2(REPO/'assets/icon.png',appdir/'com.hdm.app.png')
+        (appdir/'.DirIcon').symlink_to('com.hdm.app.png')
         run=appdir/'AppRun';run.write_text('''#!/bin/sh
 APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export APPDIR
-exec "$APPDIR/usr/lib/downloadcraft/download_craft" "$@"
+exec "$APPDIR/usr/lib/hdm/hdm" "$@"
 ''');run.chmod(0o755)
         squash=temp/'payload.squashfs'
         subprocess.run([a.mksquashfs,str(appdir),str(squash),'-noappend','-all-root','-no-xattrs','-comp','zstd','-processors','2'],check=True)
-        image=a.output/f'DownloadCraft-{VERSION}-x86_64.AppImage'
+        image=a.output/f'HDM-{VERSION}-x86_64.AppImage'
         with image.open('wb') as out:
             out.write(a.runtime.read_bytes())
             with squash.open('rb') as source:shutil.copyfileobj(source,out)

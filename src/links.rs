@@ -315,7 +315,7 @@ impl LinksApp {
         }
         let base = EngineOpts {
             user_agent: if self.prefs.user_agent.trim().is_empty() {
-                format!("download_craft/{}", crate::model::APP_VERSION)
+                format!("hdm/{}", crate::model::APP_VERSION)
             } else {
                 self.prefs.user_agent.clone()
             },
@@ -1115,7 +1115,7 @@ pub fn run() -> eframe::Result<()> {
         exited: false,
     };
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("Download all links — Download Craft")
+        .with_title("Download all links — HDM")
         .with_inner_size([LINKS_W, LINKS_H])
         .with_min_inner_size([640.0, 380.0])
         .with_resizable(true)

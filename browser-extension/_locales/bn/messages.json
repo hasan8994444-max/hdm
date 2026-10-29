@@ -1,15 +1,15 @@
 {
   "extName": {
-    "message": "Download Craft-এ পাঠান"
+    "message": "HDM-এ পাঠান"
   },
   "extDescription": {
-    "message": "ডাউনলোড আর ভিডিও Download Craft-এ পাঠায় — অথবা ব্রাউজারেই নামিয়ে নেয়।"
+    "message": "ডাউনলোড আর ভিডিও HDM-এ পাঠায় — অথবা ব্রাউজারেই নামিয়ে নেয়।"
   },
   "menuDownload": {
-    "message": "Download Craft দিয়ে ডাউনলোড করুন"
+    "message": "HDM দিয়ে ডাউনলোড করুন"
   },
   "menuDownloadAll": {
-    "message": "সব লিংক Download Craft দিয়ে ডাউনলোড করুন"
+    "message": "সব লিংক HDM দিয়ে ডাউনলোড করুন"
   },
   "busyResolving": {
     "message": "খোঁজা হচ্ছে…"
@@ -18,13 +18,13 @@
     "message": "ধরা হচ্ছে…"
   },
   "barChooseQuality": {
-    "message": "Download Craft-এ ভিডিওর মান বাছুন"
+    "message": "HDM-এ ভিডিওর মান বাছুন"
   },
   "drmProtected": {
     "message": "এই ভিডিওটি DRM-সুরক্ষিত, তাই এটি ডাউনলোড করা যাবে না: সংরক্ষিত কপিতে কোনো ছবি বা শব্দ থাকবে না। সাইটেই দেখুন।"
   },
   "barDownloadVideo": {
-    "message": "ভিডিওটি Download Craft দিয়ে ডাউনলোড করুন"
+    "message": "ভিডিওটি HDM দিয়ে ডাউনলোড করুন"
   },
   "panelHint": {
     "message": "নিচ থেকে মান বাছুন, অথবা লিংকটাই পাঠান।"
@@ -66,7 +66,7 @@
     "message": "পেজে ভিডিও খুঁজে প্লেয়ারে ডাউনলোড বার দেখায়।"
   },
   "popCaptureHint": {
-    "message": "প্রতিটি ডাউনলোড Download Craft-এ পাঠায়।"
+    "message": "প্রতিটি ডাউনলোড HDM-এ পাঠায়।"
   },
   "popHideBubble": {
     "message": "ব্রাউজারের ডাউনলোড বাবল লুকান"
@@ -105,7 +105,7 @@
     "message": "ডাউনলোড"
   },
   "menuDownloadVideo": {
-    "message": "Download Craft দিয়ে ভিডিও ডাউনলোড করুন"
+    "message": "HDM দিয়ে ভিডিও ডাউনলোড করুন"
   },
   "popOneClick": {
     "message": "শেষ বেছে নেওয়া কোয়ালিটিতে এক ক্লিকে ডাউনলোড"

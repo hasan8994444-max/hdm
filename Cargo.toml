@@ -1,9 +1,10 @@
 [package]
-name = "download_craft"
+name = "hdm"
 version = "0.9.12"
 edition = "2021"
-description = "Download Craft — a lightweight, offline-first download manager (egui GUI + CLI)"
+description = "HDM (Hasan Download Manager) — a lightweight, offline-first download manager by Hasan (egui GUI + CLI)"
 license = "MIT"
+authors = ["Hasan"]
 
 [profile.release]
 # Smaller and a little faster: whole-program optimisation, one codegen unit,
@@ -13,10 +14,10 @@ codegen-units = 1
 strip = true
 
 [workspace]
-members = [".", "crates/downloadcraft-engine"]
+members = [".", "crates/hdm-engine"]
 
 [dependencies]
-downloadcraft-engine = { path = "crates/downloadcraft-engine", version = "0.1.0" }
+hdm-engine = { path = "crates/hdm-engine", version = "0.1.0" }
 eframe = "0.32"
 egui = "0.32"
 tokio = { version = "1", features = ["full"] }

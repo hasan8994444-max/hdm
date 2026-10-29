@@ -2,7 +2,7 @@
 //!
 //! 1. Download the release's portable .zip to a temp folder and check it
 //!    against the SHA-256 GitHub publishes for the asset (and its size).
-//! 2. Unpack it there; the folder holding `download_craft.exe` is the new
+//! 2. Unpack it there; the folder holding `hdm.exe` is the new
 //!    portable folder.
 //! 3. Install: every file the new folder has replaces the one in the app's
 //!    folder. The old file is first renamed to `<name>.dcold` (Windows lets a
@@ -52,7 +52,7 @@ fn writable(dir: &Path) -> bool {
 
 /// Where downloads and unpacking happen.
 fn work_dir() -> PathBuf {
-    std::env::temp_dir().join("download-craft-update")
+    std::env::temp_dir().join("hdm-update")
 }
 
 /// Download `asset` and check it. `progress` gets 0.0..=1.0.
@@ -123,7 +123,7 @@ pub fn unpack(zip_path: &Path) -> Result<PathBuf> {
 }
 
 fn exe_name() -> &'static str {
-    if cfg!(windows) { "download_craft.exe" } else { "download_craft" }
+    if cfg!(windows) { "hdm.exe" } else { "hdm" }
 }
 
 /// The folder (the unpack root or one level down) holding the program.
@@ -216,10 +216,10 @@ fn rel_key(p: &Path) -> String {
 }
 
 /// Files the previous version installed that this one no longer has (an old
-/// `DownloadCraft-Firefox-0.9.10.xpi`, a script dropped from the extension)
+/// `HDM-Firefox-0.9.10.xpi`, a script dropped from the extension)
 /// go, and the new list is written. Without a list (a copy older than the
 /// list) only what is certainly the app's own goes: release packages named
-/// `DownloadCraft-…` and files inside its two extension folders. Anything
+/// `HDM-…` and files inside its two extension folders. Anything
 /// else in the folder is the user's and is never touched.
 fn remove_dropped(target: &Path, files: &[PathBuf]) {
     let new: std::collections::HashSet<String> = files.iter().map(|f| rel_key(f)).collect();
@@ -232,7 +232,7 @@ fn remove_dropped(target: &Path, files: &[PathBuf]) {
             .filter(|k| {
                 let top = k.split('/').next().unwrap_or("");
                 let package = !k.contains('/')
-                    && top.starts_with("DownloadCraft-")
+                    && top.starts_with("HDM-")
                     && (k.ends_with(".xpi") || k.ends_with(".zip"));
                 package || top == "browser-extension" || top == "browser-extension-firefox"
             })
@@ -390,8 +390,8 @@ mod tests {
     fn release_json_gives_the_portable_zip_and_its_checksum() {
         let h = "a".repeat(64);
         let v = serde_json::json!({ "assets": [
-            { "name": "DownloadCraft-1.0-x86_64.AppImage", "browser_download_url": "https://x/a", "size": 1 },
-            { "name": "DownloadCraft-1.0-windows-x64-portable.zip", "browser_download_url": "https://x/p.zip", "size": 42, "digest": format!("sha256:{h}") },
+            { "name": "HDM-1.0-x86_64.AppImage", "browser_download_url": "https://x/a", "size": 1 },
+            { "name": "HDM-1.0-windows-x64-portable.zip", "browser_download_url": "https://x/p.zip", "size": 42, "digest": format!("sha256:{h}") },
         ]});
         let a = pick_asset(&v).unwrap();
         assert_eq!((a.url.as_str(), a.size, a.sha256.as_deref()), ("https://x/p.zip", 42, Some(h.as_str())));
@@ -436,27 +436,27 @@ mod tests {
         std::fs::create_dir_all(new.join("browser-extension")).unwrap();
         std::fs::create_dir_all(app.join("browser-extension")).unwrap();
         std::fs::write(new.join(exe_name()), b"v2").unwrap();
-        std::fs::write(new.join("DownloadCraft-Firefox-0.9.11.xpi"), b"x2").unwrap();
+        std::fs::write(new.join("HDM-Firefox-0.9.11.xpi"), b"x2").unwrap();
         std::fs::write(new.join("browser-extension/content.js"), b"js2").unwrap();
         std::fs::write(app.join(exe_name()), b"v1").unwrap();
-        std::fs::write(app.join("DownloadCraft-Firefox-0.9.10.xpi"), b"x1").unwrap();
+        std::fs::write(app.join("HDM-Firefox-0.9.10.xpi"), b"x1").unwrap();
         std::fs::write(app.join("browser-extension/old-helper.js"), b"gone").unwrap();
         std::fs::write(app.join("my-notes.txt"), b"mine").unwrap();
         // First update: no list yet, so only the app's own leftovers go.
         install(&new, &app).unwrap();
-        assert!(!app.join("DownloadCraft-Firefox-0.9.10.xpi").exists());
+        assert!(!app.join("HDM-Firefox-0.9.10.xpi").exists());
         assert!(!app.join("browser-extension/old-helper.js").exists());
-        assert!(app.join("DownloadCraft-Firefox-0.9.11.xpi").exists());
+        assert!(app.join("HDM-Firefox-0.9.11.xpi").exists());
         assert_eq!(std::fs::read(app.join("my-notes.txt")).unwrap(), b"mine");
         // Next update: the list says what the previous one installed.
         let newer = d.join("newer");
         std::fs::create_dir_all(newer.join("browser-extension")).unwrap();
         std::fs::write(newer.join(exe_name()), b"v3").unwrap();
-        std::fs::write(newer.join("DownloadCraft-Firefox-0.9.12.xpi"), b"x3").unwrap();
+        std::fs::write(newer.join("HDM-Firefox-0.9.12.xpi"), b"x3").unwrap();
         std::fs::write(newer.join("browser-extension/content.js"), b"js3").unwrap();
         install(&newer, &app).unwrap();
-        assert!(!app.join("DownloadCraft-Firefox-0.9.11.xpi").exists());
-        assert!(app.join("DownloadCraft-Firefox-0.9.12.xpi").exists());
+        assert!(!app.join("HDM-Firefox-0.9.11.xpi").exists());
+        assert!(app.join("HDM-Firefox-0.9.12.xpi").exists());
         assert_eq!(std::fs::read(app.join("my-notes.txt")).unwrap(), b"mine");
         assert_eq!(std::fs::read(app.join(exe_name())).unwrap(), b"v3");
     }

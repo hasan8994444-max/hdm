@@ -1,6 +1,6 @@
-//! "Get ready" — what Download Craft needs, in one small window.
+//! "Get ready" — what HDM needs, in one small window.
 //!
-//! `download_craft.exe --setup [--auto]`, its own process like the progress
+//! `hdm.exe --setup [--auto]`, its own process like the progress
 //! and links windows, so it is never clipped by the main window. One row per
 //! piece: the browser connection (native host), the browser extension, and
 //! the helpers yt-dlp, FFmpeg and Deno. Each row says what it is for, whether
@@ -281,7 +281,7 @@ pub fn run() -> eframe::Result<()> {
         note: if auto { "auto".into() } else { String::new() },
     };
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("Get ready — Download Craft")
+        .with_title("Get ready — HDM")
         .with_inner_size([SW, SH])
         .with_resizable(false)
         .with_decorations(false)

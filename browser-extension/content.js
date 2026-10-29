@@ -44,7 +44,7 @@
     try { __dcTimers.forEach(clearInterval); } catch (e) {}
     try { __dcTimers.forEach(clearTimeout); } catch (e) {}
     try { __dcObservers.forEach((o) => { try { o.disconnect(); } catch (x) {} }); } catch (e) {}
-    toast("Download Craft was updated — reload this tab (Ctrl+R), then click again");
+    toast("HDM was updated — reload this tab (Ctrl+R), then click again");
   }
   // `let`: site rules from the app may add extensions (see applySiteRules).
   let DL = /\.(zip|rar|7z|exe|msi|pdf|mp4|mkv|webm|mov|mp3|flac|wav|ogg|m4a|iso|tar|gz|dmg)$/i;
@@ -77,8 +77,8 @@
       });
       const found = [...media, ...links].slice(0, 50);
       if (IS_TOP) chrome.storage.local.set({
-        downloadCraftLinks: found,
-        downloadCraftPage: location.href,
+        hdmLinks: found,
+        hdmPage: location.href,
       });
       return found;
     } catch (e) {
@@ -424,7 +424,7 @@
       void chrome.runtime.id; // throws when the context was invalidated
     } catch (e) {
       if (ctxInvalidated(e)) markDead();
-      toast("Download Craft: " + (e && e.message ? e.message : e));
+      toast("HDM: " + (e && e.message ? e.message : e));
       return;
     }
     // blob: / mediasource streams cannot be fetched by the desktop app —
@@ -452,16 +452,16 @@
       chrome.runtime.sendMessage({ type: "download", url: sendUrl, filename, ver: EXT_VER, pageUrl: location.href, referer: location.href, mime: mime || null, size: size || null, pairUrl: (pair && pair.url) || null, pairMime: (pair && pair.mime) || null, quality: quality || null, dur: dur || null, audioExpected, visitorData: ytVisitorData() }, (res) => {
       if (chrome.runtime.lastError) {
         if (ctxInvalidated(chrome.runtime.lastError)) markDead();
-        toast("Download Craft: " + chrome.runtime.lastError.message);
+        toast("HDM: " + chrome.runtime.lastError.message);
         return;
       }
       if (!res || !res.ok) {
-        toast("Download Craft: " + ((res && res.error) || "app not reachable"));
+        toast("HDM: " + ((res && res.error) || "app not reachable"));
       }
       });
     } catch (e) {
       if (ctxInvalidated(e)) markDead();
-      toast("Download Craft: " + (e && e.message ? e.message : e));
+      toast("HDM: " + (e && e.message ? e.message : e));
     }
   }
 
@@ -1328,10 +1328,10 @@
 
   // Small on-page error toast (failures are otherwise silent).
   function toast(text) {
-    let el = document.getElementById("dc-yt-toast");
+    let el = document.getElementById("hdm-yt-toast");
     if (!el) {
       el = document.createElement("div");
-      el.id = "dc-yt-toast";
+      el.id = "hdm-yt-toast";
       el.style.cssText = [
         "position:fixed", "left:18px", "bottom:18px", "z-index:2147483647",
         "max-width:min(480px,90vw)", "padding:10px 14px", "border-radius:10px",
@@ -1459,12 +1459,12 @@
         suppressClick=true;setTimeout(()=>{suppressClick=false;},0);
         if(!document.fullscreenElement)rememberBarPosition();
         ev.preventDefault();ev.stopPropagation();
-        if(onShorts() && host.id==="dc-yt-btn"){
+        if(onShorts() && host.id==="hdm-yt-btn"){
           const row=shortsControlRow();
           const q=row && row.getBoundingClientRect();
           const home=q && ev.clientX>=q.left-60 && ev.clientX<=q.right+20 && ev.clientY>=q.top-24 && ev.clientY<=q.bottom+24;
           setShortsBarFree(!home);
-          if(home)placeInPlayer(host,document.getElementById("dc-yt-panel"));
+          if(home)placeInPlayer(host,document.getElementById("hdm-yt-panel"));
         }
       }
     };
@@ -1697,7 +1697,7 @@
           p.item.el.title = "Already in the download queue";
           p.item.el.onclick = (ev) => {
             ev.stopPropagation();
-            toast("Download Craft: already in queue");
+            toast("HDM: already in queue");
           };
         }
       });
@@ -1772,7 +1772,7 @@
     const set = (k, v) => bar.style.setProperty(k, v);
     set("--bg", T.card);
     set("--glass", light ? "rgba(255,255,255,.92)" : "rgba(14,16,24,.86)");
-    set("--acc", light ? "#6d5df5" : "#7c6cf6");
+    set("--acc", light ? "#a67c00" : "#d4af37");
     set("--fg", T.text);
     set("--line", T.border);
     set("--hover", T.hover);
@@ -1892,7 +1892,7 @@
               try {
                 h.removeAttribute("data-dc-scrolling");
                 // The next Short may have its own control row by now.
-                if (h.id === "dc-yt-btn" && h.isConnected && document.getElementById("dc-yt-btn") === h) placeInPlayer(h, document.getElementById("dc-yt-panel"));
+                if (h.id === "hdm-yt-btn" && h.isConnected && document.getElementById("hdm-yt-btn") === h) placeInPlayer(h, document.getElementById("hdm-yt-panel"));
               } catch (e) { /* gone */ }
             }, 450);
           });
@@ -1976,7 +1976,7 @@
     mode: "dark", bg: "#0f172a", card: "#1e293b", hover: "#334155", border: "#334155",
     text: "#f1f5f9", dim: "#94a3b8", muted: "#64748b", accent: "#3b82f6",
     accentLight: "rgba(59,130,246,.16)", shadow: "0 8px 32px rgba(0,0,0,.4)",
-    thumbBg: "linear-gradient(135deg,#667eea,#764ba2)",
+    thumbBg: "linear-gradient(135deg,#d4af37,#8a6d1f)",
     toggleBorder: "rgba(241,245,249,.25)", toggle: "☀",
   };
   function dcThemeMode() { return DCUI ? DCUI.dcThemeMode() : "dark"; }
@@ -2533,8 +2533,8 @@
       host.style.right=right+"px";
       host.style.top=top+"px";
     });
-    const yt=document.getElementById && document.getElementById("dc-yt-btn");
-    if(yt)placeInPlayer(yt,document.getElementById("dc-yt-panel"));
+    const yt=document.getElementById && document.getElementById("hdm-yt-btn");
+    if(yt)placeInPlayer(yt,document.getElementById("hdm-yt-panel"));
   }
   // The video's box cut down by every ancestor that clips its content
   // (overflow other than visible), so a bar placed in it stays inside the
@@ -2598,14 +2598,14 @@
   function ensureButton(info) {
     const key = dismissalKey(null,info.videoId);
     if (dismissedVideos.has(key)) {
-      const old=document.getElementById("dc-yt-btn");
+      const old=document.getElementById("hdm-yt-btn");
       if(old){if(old.__dcClose)old.__dcClose.remove();old.remove();}
-      const panel=document.getElementById("dc-yt-panel");if(panel)panel.remove();
+      const panel=document.getElementById("hdm-yt-panel");if(panel)panel.remove();
       return;
     }
     syncDismissControls();
-    const oldBtn = document.getElementById("dc-yt-btn");
-    const oldPanel = document.getElementById("dc-yt-panel");
+    const oldBtn = document.getElementById("hdm-yt-btn");
+    const oldPanel = document.getElementById("hdm-yt-panel");
     if (oldBtn && oldBtn.dataset.gen !== String(GEN)) {
       // Adopted DOM from an older live instance (e.g. re-injected after
       // an update): always rebuild so the handlers belong to this
@@ -2663,13 +2663,13 @@
       oldBtn.remove();
       if (oldPanel) oldPanel.remove();
     }
-    const btn = videoDownloadBar(dcT("barChooseQuality", "Choose video quality in Download Craft"));
+    const btn = videoDownloadBar(dcT("barChooseQuality", "Choose video quality in HDM"));
     btn.dataset.vid = info.videoId || "";
     if (keepFaded) {
       clearTimeout(btn.__dcAwakeT);
       btn.removeAttribute("data-dc-awake");
     }
-    btn.id = "dc-yt-btn";
+    btn.id = "hdm-yt-btn";
     btn.dataset.vid = info.videoId;
     btn.dataset.gen = String(GEN);
     btn.dataset.sig = sigParts.join("|");
@@ -2804,7 +2804,7 @@
         else sendDownload(location.href, fname);
       },
     });
-    api.panel.id = "dc-yt-panel";
+    api.panel.id = "hdm-yt-panel";
     const sizePairs = [];
     entries.forEach((e) => {
       const it = api.addQuality({
@@ -2884,14 +2884,14 @@
       barBusy(btn, dcT("busyResolving", "Resolving…"));
       waitFor(() => {
         refreshYouTube();
-        const cur = document.getElementById("dc-yt-btn");
+        const cur = document.getElementById("hdm-yt-btn");
         return cur && cur.dataset.ready === "1" ? cur : null;
       }, (cur) => {
         if (ytOpenWhenReady !== info.videoId) return; // opened already
         ytOpenWhenReady = "";
         // Still nothing after the wait: the menu can still hand the page to
         // the app, which resolves the video itself.
-        const now = cur || document.getElementById("dc-yt-btn");
+        const now = cur || document.getElementById("hdm-yt-btn");
         if (now && now.__dcOpen) now.__dcOpen();
       });
     };
@@ -2924,8 +2924,8 @@
     const id = ytVideoId();
     if (!id || !detectionOn) return;
     const player = ytPlayer();
-    const waiting = document.getElementById("dc-yt-btn");
-    if (waiting && waiting.style.display === "none" && player) placeInPlayer(waiting, document.getElementById("dc-yt-panel"));
+    const waiting = document.getElementById("hdm-yt-btn");
+    if (waiting && waiting.style.display === "none" && player) placeInPlayer(waiting, document.getElementById("hdm-yt-panel"));
     layoutCheck("yt-player", !player, "YouTube: no video player element found on a video page (the layout may have changed); the button sits in the window corner");
     const shorts = /^\/shorts\//.test(location.pathname);
     if (shorts) {
@@ -2939,13 +2939,13 @@
 
   function refreshYouTube() {
     const id = detectionOn ? ytVideoId() : null;
-    const oldBtn = document.getElementById("dc-yt-btn");
-    const oldPanel = document.getElementById("dc-yt-panel");
+    const oldBtn = document.getElementById("hdm-yt-btn");
+    const oldPanel = document.getElementById("hdm-yt-panel");
     if (!id) {
       if (oldBtn) oldBtn.remove();
       if (oldPanel) oldPanel.remove();
       try {
-        if (IS_TOP) chrome.storage.local.set({ downloadCraftVideos: [] });
+        if (IS_TOP) chrome.storage.local.set({ hdmVideos: [] });
       } catch (e) {
         /* ignore */
       }
@@ -2961,13 +2961,13 @@
     const info = parsed || { videoId: id, title: document.title.replace(/ - YouTube$/, ""), thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, streams: [], videoOnly: [], audio: [], subs: [] };
     try {
       if (IS_TOP) chrome.storage.local.set({
-        downloadCraftVideos: [{
+        hdmVideos: [{
           videoId: info.videoId, title: info.title, thumb: info.thumb || "",
           streams: info.streams, videoOnly: info.videoOnly || [], audio: info.audio || [],
           sizes: info.sizes || {}, subs: info.subs || [],
           pageUrl: location.href,
         }],
-        downloadCraftPage: location.href,
+        hdmPage: location.href,
       });
     } catch (e) {
       /* ignore */
@@ -3021,7 +3021,7 @@
         // Skip tiny preview thumbnails.
         const r = v.getBoundingClientRect ? v.getBoundingClientRect() : null;
         if (r && (r.width < 120 || r.height < 70)) continue;
-        const pill = videoDownloadBar(dcT("barDownloadVideo", "Download this video with Download Craft"));
+        const pill = videoDownloadBar(dcT("barDownloadVideo", "Download this video with HDM"));
         pill.setAttribute("data-dc-pill", "1");
         pill.dataset.gen = String(GEN);
         pill.style.position = "absolute";
@@ -3246,7 +3246,7 @@
   // Instagram / TikTok / X / Reddit: the post's qualities (the app fetches
   // the one picked with its sound), plus audio only as MP3.
   function openSocialMenu(pill, post, video) {
-    try { document.querySelectorAll("#dc-social-panel").forEach((m) => m.remove()); } catch (e) {}
+    try { document.querySelectorAll("#hdm-social-panel").forEach((m) => m.remove()); } catch (e) {}
     let api = null;
     const pick = (q) => { rememberQuality(q); socialSend(post, q, video); };
     api = dcPanel({
@@ -3258,7 +3258,7 @@
       onSendLink: () => pick("best"),
       onPrimary: () => { const it = api.selected(); if (it && it.q && it.q.send) it.q.send(); },
     });
-    api.panel.id = "dc-social-panel";
+    api.panel.id = "hdm-social-panel";
     for (const q of SOCIAL_QUALITIES) {
       const res = q === "best" ? dcT("qualityBest", "Best") : q;
       const it = api.addQuality({ format: "MP4", res, size: "", tip: `${res} · MP4`, send: () => pick(q), onPick: () => api.setInfo({ res, size: "", format: "MP4" }) });
@@ -3282,7 +3282,7 @@
   // with the reel's HD/SD rows (and any fresh sniffed stream) as quality
   // cells, so every reel offers a choice instead of one mystery "Facebook.mp4".
   function openFbMenu(pill, rows, title, thumb, audio, pair) {
-    try { document.querySelectorAll("#dc-fb-panel").forEach((m) => m.remove()); } catch (e) {}
+    try { document.querySelectorAll("#hdm-fb-panel").forEach((m) => m.remove()); } catch (e) {}
     const first = (rows && rows[0]) || {};
     const fname = first.fname || fbFilename(title);
     let api = null;
@@ -3300,7 +3300,7 @@
         if (it && it.q && it.q.send) it.q.send();
       },
     });
-    api.panel.id = "dc-fb-panel";
+    api.panel.id = "hdm-fb-panel";
     pill.__dcFbPanel=api.panel;
     const sizePairs = [];
     (rows || []).forEach((st) => {
@@ -3401,8 +3401,8 @@
         } catch (e) { use = items; }
         if (!use.length) return;
         try {
-          chrome.storage.local.get(["downloadCraftLinks"], (cur) => {
-            const have = new Set(((cur && cur.downloadCraftLinks) || []).map((l) => l.url));
+          chrome.storage.local.get(["hdmLinks"], (cur) => {
+            const have = new Set(((cur && cur.hdmLinks) || []).map((l) => l.url));
             let pageThumb = "";
             try {
               const pv = document.querySelector("video[poster]");
@@ -3413,9 +3413,9 @@
               .filter((m) => !have.has(m.url))
               .map((m) => ({ url: m.url, text: `Stream (${m.mime || "media"})`, thumb: m.thumb || pageThumb }));
             if (add.length && IS_TOP) {
-              chrome.storage.local.get(["downloadCraftLinks", "downloadCraftPage"], (c2) => {
-                const merged = [...(((c2 && c2.downloadCraftLinks) || [])), ...add].slice(0, 50);
-                chrome.storage.local.set({ downloadCraftLinks: merged, downloadCraftPage: location.href });
+              chrome.storage.local.get(["hdmLinks", "hdmPage"], (c2) => {
+                const merged = [...(((c2 && c2.hdmLinks) || [])), ...add].slice(0, 50);
+                chrome.storage.local.set({ hdmLinks: merged, hdmPage: location.href });
               });
             }
           });
@@ -3424,7 +3424,7 @@
     } catch (e) { /* background unreachable */ }
   }
 
-  // Right-click → "Download video with Download Craft": the video under the
+  // Right-click → "Download video with HDM": the video under the
   // pointer (sites cover it with their own layers, so the click target is
   // rarely the <video> itself), else the biggest one on screen. It does what
   // its button does: YouTube's menu, a post's qualities, Facebook's menu.
@@ -3451,7 +3451,7 @@
     if (drmProtected(v)) { toast(dcT("drmProtected", DRM_NOTE)); return; }
     if (ytVideoId() && (!v || (v.closest && v.closest(".html5-video-player")))) {
       refreshYouTube();
-      const b = document.getElementById("dc-yt-btn");
+      const b = document.getElementById("hdm-yt-btn");
       if (b && b.__dcOpen && b.dataset.ready === "1") { b.__dcOpen(); return; }
       if (b) { b.click(); return; }
       sendDownload(location.href, undefined, null);
@@ -3708,7 +3708,7 @@
       collectLinks();
       ensureUniversalButtons();
       refreshYouTube();
-    } else if (onShorts() && detectionOn && !document.getElementById("dc-yt-btn")) {
+    } else if (onShorts() && detectionOn && !document.getElementById("hdm-yt-btn")) {
       // YouTube redraws a Short's control row now and then, which takes the
       // button with it: put it back (unless it was hidden for this video).
       try {

@@ -314,8 +314,8 @@ pub fn run_mini() -> eframe::Result<()> {
     let mut app = MiniApp { centered: false, active: 0, queued: 0, speed: 0.0, frac: 0.0 };
     refresh_mini(&mut app);
     eframe::run_native(
-        "Download Craft Mini",
-        centered_window("Download Craft Mini", 340.0, 230.0),
+        "HDM Mini",
+        centered_window("HDM Mini", 340.0, 230.0),
         Box::new(|cc| {
             crate::app::setup_fonts(cc);
             // Spawned as its own process: pick up whatever theme `ui.json`

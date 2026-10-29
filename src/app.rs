@@ -15,13 +15,14 @@ type PlatformTray = ();
 // ---------- theme ----------
 /// Unified geometry: every card, modal, field, and button across ALL
 /// windows (main, Add-download dialog, progress) uses this radius.
-pub const RADIUS: f32 = 10.0;
+pub const RADIUS: f32 = 12.0; // HDM premium: softer, rounder corners
 
 /// Unified title bar height (`main_window_titlebar.html` `.title-bar`).
 pub const TB_H: f32 = 46.0;
 
 /// Every hand-painted surface reads its colours from the ACTIVE palette
-/// (`pl()`) instead of a hard-coded constant, so a theme switch repaints the
+/// HDM premium theme: deep navy-black surfaces with a gold accent
+/// (by Hasan). (`pl()`) instead of a hard-coded constant, so a theme switch repaints the
 /// whole app — not just the stock egui widgets.
 ///
 /// `DARK_PAL` holds the exact values the concept designs specify, so the dark
@@ -105,23 +106,23 @@ pub struct Palette {
 }
 
 pub const DARK_PAL: Palette = Palette {
-    bg: egui::Color32::from_rgb(18, 19, 26),
-    surface: egui::Color32::from_rgb(26, 27, 36),
-    surface_lt: egui::Color32::from_rgb(36, 37, 50),
-    header_bg: egui::Color32::from_rgb(13, 14, 20),
+    bg: egui::Color32::from_rgb(9, 10, 15),
+    surface: egui::Color32::from_rgb(16, 18, 26),
+    surface_lt: egui::Color32::from_rgb(27, 30, 43),
+    header_bg: egui::Color32::from_rgb(6, 7, 11),
     // A step brighter than `bg`, as light mode's white cards are on its
     // grey: the sidebar and the list read as panels on the window.
-    central_bg: egui::Color32::from_rgb(25, 26, 35),
+    central_bg: egui::Color32::from_rgb(14, 16, 23),
     card_bd: egui::Color32::from_rgb(35, 36, 48),
-    primary: egui::Color32::from_rgb(124, 92, 252),
-    secondary: egui::Color32::from_rgb(184, 93, 255),
+    primary: egui::Color32::from_rgb(212, 175, 55),
+    secondary: egui::Color32::from_rgb(238, 205, 110),
     txt: egui::Color32::from_rgb(230, 230, 240),
     dim: egui::Color32::from_rgb(140, 142, 160),
     success: egui::Color32::from_rgb(76, 217, 100),
     warning: egui::Color32::from_rgb(255, 159, 10),
     error: egui::Color32::from_rgb(255, 69, 58),
     sel_bg: egui::Color32::from_rgba_premultiplied(18, 14, 38, 38),
-    sel_bd: egui::Color32::from_rgb(124, 92, 252),
+    sel_bd: egui::Color32::from_rgb(212, 175, 55),
     hover_bg: egui::Color32::from_rgba_premultiplied(15, 16, 19, 26),
     modal_bg: egui::Color32::from_rgb(20, 21, 29),
     modal_bd: egui::Color32::from_rgb(45, 47, 65),
@@ -155,21 +156,21 @@ pub const DARK_PAL: Palette = Palette {
 };
 
 pub const LIGHT_PAL: Palette = Palette {
-    bg: egui::Color32::from_rgb(0xEE, 0xF0, 0xF6),
+    bg: egui::Color32::from_rgb(0xF7, 0xF3, 0xEA),
     surface: egui::Color32::from_rgb(0xFF, 0xFF, 0xFF),
     surface_lt: egui::Color32::from_rgb(0xE6, 0xE9, 0xF2),
     header_bg: egui::Color32::from_rgb(0xFF, 0xFF, 0xFF),
     central_bg: egui::Color32::from_rgb(0xFF, 0xFF, 0xFF),
     card_bd: egui::Color32::from_rgb(0xD5, 0xD9, 0xE6),
-    primary: egui::Color32::from_rgb(124, 92, 252),
-    secondary: egui::Color32::from_rgb(154, 62, 226),
+    primary: egui::Color32::from_rgb(171, 132, 18),
+    secondary: egui::Color32::from_rgb(196, 154, 44),
     txt: egui::Color32::from_rgb(0x20, 0x24, 0x33),
     dim: egui::Color32::from_rgb(0x5F, 0x67, 0x78),
     success: egui::Color32::from_rgb(0x1A, 0xA9, 0x4B),
     warning: egui::Color32::from_rgb(0xB4, 0x6A, 0x05),
     error: egui::Color32::from_rgb(0xD9, 0x2B, 0x1E),
     sel_bg: egui::Color32::from_rgba_premultiplied(18, 13, 36, 36),
-    sel_bd: egui::Color32::from_rgb(124, 92, 252),
+    sel_bd: egui::Color32::from_rgb(212, 175, 55),
     hover_bg: egui::Color32::from_rgba_premultiplied(1, 2, 3, 18),
     modal_bg: egui::Color32::from_rgb(0xFF, 0xFF, 0xFF),
     modal_bd: egui::Color32::from_rgb(0xD5, 0xD9, 0xE6),
@@ -951,7 +952,7 @@ fn mbutton(
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
     let p = ui.painter();
     if primary {
-        p.rect_filled(rect, RADIUS, egui::Color32::from_rgb(108, 62, 220));
+        p.rect_filled(rect, RADIUS, pl().primary); // HDM premium gold primary button
     } else {
         p.rect_filled(rect, RADIUS, pl().surface);
         if man.hover(&rect) {
@@ -967,7 +968,7 @@ fn mbutton(
     let g = p.layout_no_wrap(
         label.to_string(),
         egui::FontId::proportional(13.0),
-        if primary { egui::Color32::WHITE } else { pl().txt },
+        if primary { egui::Color32::from_rgb(20, 16, 4) } else { pl().txt },
     );
     p.galley(
         egui::pos2(
@@ -975,7 +976,7 @@ fn mbutton(
             rect.center().y - g.size().y / 2.0,
         ),
         g,
-        if primary { egui::Color32::WHITE } else { pl().txt },
+        if primary { egui::Color32::from_rgb(20, 16, 4) } else { pl().txt },
     );
     rect
 }
@@ -1104,7 +1105,7 @@ fn mslider(
         p.circle_filled(
             egui::pos2(kx, ty),
             9.0,
-            egui::Color32::from_rgba_unmultiplied(124, 92, 252, 40),
+            egui::Color32::from_rgba_unmultiplied(212, 175, 55, 40),
         );
     }
     p.circle_filled(egui::pos2(kx, ty), 7.0, pl().primary);
@@ -1250,7 +1251,7 @@ fn dp_button(ui: &mut egui::Ui, man: &ManState, label: &str, primary: bool) -> e
         egui::Align2::CENTER_CENTER,
         label.to_string(),
         crate::fonts::reg(11.0),
-        if primary { egui::Color32::WHITE } else { pl().txt },
+        if primary { egui::Color32::from_rgb(20, 16, 4) } else { pl().txt },
     );
     rect
 }
@@ -2062,13 +2063,13 @@ struct ZipPick {
     url: String,
     out_dir: std::path::PathBuf,
     opts: EngineOpts,
-    entries: Vec<(downloadcraft_engine::zip::ZipEntry, bool)>,
+    entries: Vec<(hdm_engine::zip::ZipEntry, bool)>,
     status: String,
     busy: bool,
 }
 
 enum ZipMsg {
-    Listed(Result<Vec<downloadcraft_engine::zip::ZipEntry>, String>),
+    Listed(Result<Vec<hdm_engine::zip::ZipEntry>, String>),
     Status(String),
     Done(String),
 }
@@ -2323,7 +2324,7 @@ impl CraftApp {
             downloads: Vec::new(),
             tasks: HashMap::new(),
             next_id: 1,
-            log: vec!["Download Craft ready.".to_string()],
+            log: vec!["HDM ready.".to_string()],
             filter: "All".to_string(),
             search: String::new(),
             sort_col: SortCol::Date,
@@ -3309,7 +3310,7 @@ impl CraftApp {
     fn side_opts(&self, d: &DownloadItem) -> EngineOpts {
         EngineOpts {
             user_agent: if self.user_agent.trim().is_empty() {
-                format!("download_craft/{}", crate::model::APP_VERSION)
+                format!("hdm/{}", crate::model::APP_VERSION)
             } else {
                 self.user_agent.clone()
             },
@@ -3347,8 +3348,8 @@ impl CraftApp {
         self.rt.spawn(async move {
             let r = async {
                 let client = opts.build_client().map_err(|e| format!("{e:#}"))?;
-                let request: downloadcraft_engine::RequestFn = Arc::new(move |u: &str| opts.get(&client, u));
-                downloadcraft_engine::zip::list_remote(&request, &url).await.map_err(|e| e.to_string())
+                let request: hdm_engine::RequestFn = Arc::new(move |u: &str| opts.get(&client, u));
+                hdm_engine::zip::list_remote(&request, &url).await.map_err(|e| e.to_string())
             }
             .await;
             let _ = tx.send(ZipMsg::Listed(r));
@@ -3358,7 +3359,7 @@ impl CraftApp {
     /// Fetch the ticked entries one after another into the ZIP's folder.
     fn zip_fetch_selected(&mut self) {
         let Some(p) = self.zip_pick.as_mut() else { return };
-        let picked: Vec<downloadcraft_engine::zip::ZipEntry> =
+        let picked: Vec<hdm_engine::zip::ZipEntry> =
             p.entries.iter().filter(|(e, on)| *on && e.can_extract()).map(|(e, _)| e.clone()).collect();
         if picked.is_empty() {
             p.status = "Tick at least one file.".into();
@@ -3376,7 +3377,7 @@ impl CraftApp {
                     return;
                 }
             };
-            let request: downloadcraft_engine::RequestFn = Arc::new(move |u: &str| opts.get(&client, u));
+            let request: hdm_engine::RequestFn = Arc::new(move |u: &str| opts.get(&client, u));
             let (mut ok, n) = (0, picked.len());
             for (i, e) in picked.iter().enumerate() {
                 let _ = tx.send(ZipMsg::Status(format!("{}/{n}: {}", i + 1, e.name)));
@@ -3387,7 +3388,7 @@ impl CraftApp {
                     .filter(|s| !s.is_empty() && *s != "." && *s != "..")
                     .map(crate::engine::sanitize_filename)
                     .collect();
-                match downloadcraft_engine::zip::extract_remote(&request, &url, e, &out_dir.join(rel)).await {
+                match hdm_engine::zip::extract_remote(&request, &url, e, &out_dir.join(rel)).await {
                     Ok(_) => ok += 1,
                     Err(err) => {
                         let _ = tx.send(ZipMsg::Status(format!("{}: {err}", e.name)));
@@ -3539,12 +3540,12 @@ impl CraftApp {
                     ) =>
                 {
                     self.push_log(format!("Verify #{id}: OK (SHA-256 matches)."));
-                    notify("Download Craft — checksum OK", &format!("#{id} verified"));
+                    notify("HDM — checksum OK", &format!("#{id} verified"));
                 }
                 Ok(actual) => {
                     let short = if actual.len() > 16 { &actual[..16] } else { &actual[..] };
                     self.push_log(format!("Verify #{id}: MISMATCH (file starts {short}…)."));
-                    notify("Download Craft — checksum mismatch", &format!("#{id} does not match"));
+                    notify("HDM — checksum mismatch", &format!("#{id} does not match"));
                 }
                 Err(e) => self.push_log(format!("Verify #{id}: failed ({e:#}).")),
             }
@@ -3595,7 +3596,7 @@ impl CraftApp {
         self.probe_size = None;
         self.probe_name = None;
         let ua = if self.user_agent.trim().is_empty() {
-            format!("download_craft/{}", crate::model::APP_VERSION)
+            format!("hdm/{}", crate::model::APP_VERSION)
         } else {
             self.user_agent.clone()
         };
@@ -3673,7 +3674,7 @@ impl CraftApp {
         let depth = if self.grab_depth { self.grab_levels.clamp(1, 5) } else { 0 };
         let stay = self.grab_stay;
         let ua = if self.user_agent.trim().is_empty() {
-            format!("download_craft/{}", crate::model::APP_VERSION)
+            format!("hdm/{}", crate::model::APP_VERSION)
         } else {
             self.user_agent.clone()
         };
@@ -3823,7 +3824,7 @@ impl CraftApp {
             std::sync::atomic::AtomicBool::new(false);
         if !HID_HINT.swap(true, std::sync::atomic::Ordering::SeqCst) {
             notify(
-                "Download Craft is still running",
+                "HDM is still running",
                 "In the tray — left-click its icon to reopen, right-click for Exit.",
             );
         }
@@ -3903,7 +3904,7 @@ impl CraftApp {
         self.selfupd_rx = Some(rx);
         self.update_busy = true;
         self.update_status = format!("Downloading {}…", asset.name);
-        let ua = format!("download_craft/{}", crate::model::APP_VERSION);
+        let ua = format!("hdm/{}", crate::model::APP_VERSION);
         self.rt.spawn(async move {
             let res: anyhow::Result<usize> = async {
                 let client = reqwest::Client::builder().user_agent(ua).build()?;
@@ -3946,7 +3947,7 @@ impl CraftApp {
                     self.update_restart_ready = true;
                     if self.tasks.is_empty() {
                         self.update_auto = false;
-                        notify("Download Craft updated", "Restarting into the new version…");
+                        notify("HDM updated", "Restarting into the new version…");
                         self.restart_for_update();
                     } else {
                         self.update_status = format!(
@@ -3986,7 +3987,7 @@ impl CraftApp {
                 std::process::exit(0);
             }
             Err(e) => {
-                self.update_status = format!("Update installed, but the restart failed ({e:#}): close and reopen Download Craft.");
+                self.update_status = format!("Update installed, but the restart failed ({e:#}): close and reopen HDM.");
             }
         }
     }
@@ -4007,10 +4008,10 @@ impl CraftApp {
             .next()
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
-            .unwrap_or_else(|| "download_craft_update.zip".to_string());
+            .unwrap_or_else(|| "hdm_update.zip".to_string());
         if self.queue_url(url, Some(fname.clone()), true, None) {
             self.push_log(format!("Downloading update: {fname}"));
-            notify("Download Craft — update", &format!("Downloading {fname}"));
+            notify("HDM — update", &format!("Downloading {fname}"));
         } else {
             self.push_log("Update already queued.");
         }
@@ -4161,7 +4162,7 @@ impl CraftApp {
     fn export_list(&mut self) {
         let file = rfd::FileDialog::new()
             .add_filter("Text", &["txt"])
-            .set_file_name("download_craft_urls.txt")
+            .set_file_name("hdm_urls.txt")
             .set_title("Export URL list")
             .save_file();
         let Some(path) = file else { return };
@@ -4354,7 +4355,7 @@ impl CraftApp {
             timeout_secs: item.eff_timeout(self.timeout_secs),
             max_retries: item.eff_retries(self.max_retries),
             user_agent: if self.user_agent.trim().is_empty() {
-                format!("download_craft/{}", crate::model::APP_VERSION)
+                format!("hdm/{}", crate::model::APP_VERSION)
             } else {
                 self.user_agent.clone()
             },
@@ -5160,7 +5161,7 @@ impl CraftApp {
                                 crate::platform::play_sound(false);
                             }
                             notify(
-                                "Download Craft — download failed",
+                                "HDM — download failed",
                                 &format!("#{id}: {reason}"),
                             );
                         } else {
@@ -5211,7 +5212,7 @@ impl CraftApp {
 
     /// Called with an immutable borrow-safe snapshot after a download completes.
     fn on_download_finished(&mut self, name: &str, path: &std::path::Path) {
-        notify("Download Craft — download finished", name);
+        notify("HDM — download finished", name);
         crate::model::record_finished_bytes(std::fs::metadata(path).map(|m| m.len()).unwrap_or(0));
         self.stats_at = Instant::now().checked_sub(std::time::Duration::from_secs(60)).unwrap_or_else(Instant::now);
         if self.sounds {
@@ -5294,7 +5295,7 @@ impl CraftApp {
                         }
                         line += " — archive deleted";
                     }
-                    notify("Download Craft — extracted", &shown);
+                    notify("HDM — extracted", &shown);
                     line
                 }
                 Err(e) => {
@@ -5302,7 +5303,7 @@ impl CraftApp {
                         // Only an empty folder this run created goes away.
                         let _ = std::fs::remove_dir(&dest);
                     }
-                    notify("Download Craft — could not extract", &format!("{shown}: {e}"));
+                    notify("HDM — could not extract", &format!("{shown}: {e}"));
                     format!("Could not extract {shown}: {e}")
                 }
             };
@@ -5344,7 +5345,7 @@ impl CraftApp {
             "shutdown" => {
                 self.push_log("Queue done — shutting down.");
                 let mut c = std::process::Command::new("shutdown");
-                c.args(["/s", "/t", "15", "/c", "Download Craft: downloads finished"]);
+                c.args(["/s", "/t", "15", "/c", "HDM: downloads finished"]);
                 quiet(&mut c);
                 let _ = c.spawn();
             }
@@ -5372,7 +5373,7 @@ impl CraftApp {
                 Err(e)=>self.push_log(format!("Queue finished; power action was not completed: {e}")),
             }
         }
-        notify("Download Craft — queue finished", "All downloads completed.");
+        notify("HDM — queue finished", "All downloads completed.");
         self.save_queue();
     }
 
@@ -5456,7 +5457,7 @@ impl CraftApp {
             .collect();
         if items.len() < before {
             self.push_log(format!(
-                "Ignored {} browser capture(s) sent while Download Craft was closed.",
+                "Ignored {} browser capture(s) sent while HDM was closed.",
                 before - items.len()
             ));
         }
@@ -5624,7 +5625,7 @@ impl CraftApp {
         }
     }
 
-    /// Consume `%APPDATA%/download_craft/wake.json` (`{"start":[ids]}`):
+    /// Consume `%APPDATA%/hdm/wake.json` (`{"start":[ids]}`):
     /// start IDs queued by a standalone dialog's "Start Download".
     fn check_wake(&mut self) {
         let path = match crate::model::config_dir() {
@@ -5790,7 +5791,7 @@ pub(crate) fn install_native_host(browser: &str) -> Result<String, String> {
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
 
     let exe = crate::platform::launch_path().map_err(|e| e.to_string())?;
-    let bat = base.join("download_craft_host.bat");
+    let bat = base.join("hdm_host.bat");
     // NOTE: `@echo off` is mandatory — cmd echoes every command to stdout
     // by default, which corrupts the length-prefixed native-messaging
     // protocol and makes Chrome report the host as unreachable.
@@ -5801,19 +5802,19 @@ pub(crate) fn install_native_host(browser: &str) -> Result<String, String> {
     .map_err(|e| e.to_string())?;
 
     // Native host name (must match the browser extension's HOST constant).
-    const HOST_NAME: &str = "com.download_craft";
+    const HOST_NAME: &str = "com.hdm";
     let manifest_path = base.join(format!("{browser}.json"));
     let manifest = match browser {
         "firefox" => serde_json::json!({
             "name": HOST_NAME,
-            "description": "Download Craft native host",
+            "description": "HDM native host",
             "path": bat.to_string_lossy(),
             "type": "stdio",
-            "allowed_extensions": ["send-to-download-craft@example"]
+            "allowed_extensions": ["send-to-hdm@example"]
         }),
         _ => serde_json::json!({
             "name": HOST_NAME,
-            "description": "Download Craft native host",
+            "description": "HDM native host",
             "path": bat.to_string_lossy(),
             "type": "stdio",
             "allowed_origins": std::iter::once(EXTENSION_ID)
@@ -5869,7 +5870,7 @@ pub(crate) fn native_host_status(browser: &str) -> bool {
 #[cfg(not(windows))]
 pub(crate) fn native_host_status(browser: &str) -> bool {
     crate::platform::native_host_directory(browser)
-        .map(|d| d.join("com.download_craft.json").is_file())
+        .map(|d| d.join("com.hdm.json").is_file())
         .unwrap_or(false)
 }
 
@@ -5877,12 +5878,12 @@ pub(crate) fn native_host_status(browser: &str) -> bool {
 /// Opera / Brave / Vivaldi share the Chromium layout with vendor keys.
 fn native_host_key(browser: &str) -> &'static str {
     match browser {
-        "chrome" => r"HKCU\Software\Google\Chrome\NativeMessagingHosts\com.download_craft",
-        "edge" => r"HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.download_craft",
-        "brave" => r"HKCU\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.download_craft",
-        "opera" => r"HKCU\Software\Opera Software\NativeMessagingHosts\com.download_craft",
-        "vivaldi" => r"HKCU\Software\Vivaldi\NativeMessagingHosts\com.download_craft",
-        _ => r"HKCU\Software\Mozilla\NativeMessagingHosts\com.download_craft",
+        "chrome" => r"HKCU\Software\Google\Chrome\NativeMessagingHosts\com.hdm",
+        "edge" => r"HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.hdm",
+        "brave" => r"HKCU\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.hdm",
+        "opera" => r"HKCU\Software\Opera Software\NativeMessagingHosts\com.hdm",
+        "vivaldi" => r"HKCU\Software\Vivaldi\NativeMessagingHosts\com.hdm",
+        _ => r"HKCU\Software\Mozilla\NativeMessagingHosts\com.hdm",
     }
 }
 
@@ -5956,19 +5957,19 @@ fn ensure_native_host(browser:&str)->Result<bool,String>{
 async fn update_check_async() -> (String, Option<crate::selfupdate::Asset>, bool) {
     let current = env!("CARGO_PKG_VERSION");
     let client = match reqwest::Client::builder()
-        .user_agent(format!("download_craft/{current}"))
+        .user_agent(format!("hdm/{current}"))
         .connect_timeout(std::time::Duration::from_secs(15))
         .build()
     {
         Ok(c) => c,
         Err(e) => return (format!("Update check failed: {e:#}"), None, false),
     };
-    // DOWNLOAD_CRAFT_UPDATE_API points the check at another release JSON
+    // HDM_UPDATE_API points the check at another release JSON
     // (used to test updates end to end without publishing one).
-    let api = std::env::var("DOWNLOAD_CRAFT_UPDATE_API")
+    let api = std::env::var("HDM_UPDATE_API")
         .ok()
         .filter(|u| !u.trim().is_empty())
-        .unwrap_or_else(|| "https://api.github.com/repos/hungry-detective/downloadcraft/releases/latest".to_string());
+        .unwrap_or_else(|| "https://api.github.com/repos/HASAN-USERNAME/hdm/releases/latest".to_string());
     let resp = client
         .get(api)
         .header("Accept", "application/vnd.github+json")
@@ -5995,7 +5996,7 @@ async fn update_check_async() -> (String, Option<crate::selfupdate::Asset>, bool
         let url = v
             .get("html_url")
             .and_then(|u| u.as_str())
-            .unwrap_or("https://github.com/hungry-detective/downloadcraft/releases");
+            .unwrap_or("https://github.com/HASAN-USERNAME/hdm/releases");
         (
             format!("Update available: {tag} (you have v{current}) — {url}"),
             crate::selfupdate::pick_asset(&v),
@@ -6023,7 +6024,7 @@ fn build_tray() -> Option<tray_icon::TrayIcon> {
     let (w, h) = (img.width(), img.height());
     let icon = tray_icon::Icon::from_rgba(img.into_raw(), w, h).ok()?;
     let menu = tray_icon::menu::Menu::new();
-    let show = tray_icon::menu::MenuItem::with_id("tray-show", "Show Download Craft", true, None);
+    let show = tray_icon::menu::MenuItem::with_id("tray-show", "Show HDM", true, None);
     let exit = tray_icon::menu::MenuItem::with_id("tray-exit", "Exit", true, None);
     menu.append_items(&[&show, &exit]).ok()?;
     // Menu clicks are acted on as they arrive (see `tray::install_menu_handler`),
@@ -6208,7 +6209,7 @@ impl eframe::App for CraftApp {
             // last one stops (an interrupted one resumes after the restart).
             if self.update_restart_ready && self.update_auto && self.tasks.is_empty() {
                 self.update_auto = false;
-                notify("Download Craft updated", "Restarting into the new version…");
+                notify("HDM updated", "Restarting into the new version…");
                 self.restart_for_update();
             }
             if let Some(rx) = self.update_rx.as_ref() {
@@ -9067,7 +9068,7 @@ impl eframe::App for CraftApp {
                 );
                 ctx.fonts(|fo| fo.layout_job(job))
             };
-            let g_name = lay("Download Craft", f_name.clone(), p.txt, body_w);
+            let g_name = lay("HDM", f_name.clone(), p.txt, body_w);
             let g_ver = {
                 let mut job = egui::text::LayoutJob::default();
                 job.wrap.max_width = body_w;

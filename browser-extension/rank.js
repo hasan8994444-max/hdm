@@ -422,7 +422,7 @@
       accent: "#3b82f6",
       accentLight: "rgba(59,130,246,.16)",
       shadow: "0 8px 32px rgba(0,0,0,.4)",
-      thumbBg: "linear-gradient(135deg,#667eea,#764ba2)",
+      thumbBg: "linear-gradient(135deg,#d4af37,#8a6d1f)",
       toggleBorder: "rgba(241,245,249,.25)",
       toggle: "☀",
     };

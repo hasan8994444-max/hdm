@@ -1,39 +1,17 @@
-<div align="center">
+# HDM — Hasan Download Manager
 
-<img src="assets/icon.png" alt="Download Craft" width="96">
+**A fast, free, premium-feel download manager — by Hasan.**
 
-# Download Craft
+HDM is a lightweight, offline-first download manager with a browser extension
+that catches the videos other tools miss. Multi-connection downloads, a queue
+and scheduler, YouTube and 1,000+ sites through its own yt-dlp, and an
+extension that works with the app — or on its own.
 
-**A fast, free download manager — with a browser extension that catches the videos other tools miss.**
+Windows 10/11 · macOS 12+ (Apple Silicon & Intel) · Linux x86-64 (DEB, RPM, AppImage)
 
-Multi-connection downloads, a queue and scheduler, YouTube and 1,000+ sites through its own
-yt-dlp, and an extension that works with the app — or on its own.
-
-<a href="https://github.com/hungry-detective/downloadcraft/releases"><img src="https://img.shields.io/github/downloads/hungry-detective/downloadcraft/total?style=for-the-badge&label=downloads&color=22c55e&logo=github&logoColor=white" alt="Total downloads" height="48"></a>
-
-[![Latest release](https://img.shields.io/github/v/release/hungry-detective/downloadcraft?label=latest&style=flat-square&color=3b82f6)](https://github.com/hungry-detective/downloadcraft/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-a78bfa?style=flat-square)](LICENSE)
-[![Made with Rust](https://img.shields.io/badge/made%20with-Rust-f97316?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
-
-<br>
-
-[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00yIDQuMmw4LjUtMS4ydjguNEgyek0xMS42IDIuOUwyMiAxLjV2OS45SDExLjZ6TTIgMTIuNmg4LjVWMjFMMiAxOS44ek0xMS42IDEyLjZIMjJ2OS45bC0xMC40LTEuNHonLz48L3N2Zz4=)](https://github.com/hungry-detective/downloadcraft/releases/download/v0.9.12/DownloadCraft-0.9.12-windows-x64-portable.zip)
-&nbsp;
-[![Download for macOS](https://img.shields.io/badge/Download-macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/hungry-detective/downloadcraft/releases/download/v0.9.12/DownloadCraft-0.9.12-macos-Universal.zip)
-&nbsp;
-[![Download for Linux](https://img.shields.io/badge/Download-Linux-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/hungry-detective/downloadcraft/releases/tag/v0.9.12)
-
-[![Chrome / Edge extension](https://img.shields.io/badge/Extension-Chrome%20%2F%20Edge-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/hungry-detective/downloadcraft/releases/download/v0.9.12/DownloadCraft-Chrome-0.9.12.zip)
-&nbsp;
-[![Firefox extension](https://img.shields.io/badge/Extension-Firefox-FF7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white)](https://github.com/hungry-detective/downloadcraft/releases/download/v0.9.12/DownloadCraft-Firefox-0.9.12.xpi)
-
-<sub>Windows 10/11 · macOS 12+ (Apple Silicon & Intel) · Linux x86-64 (DEB, RPM, AppImage) · <a href="https://github.com/hungry-detective/downloadcraft/releases">all releases</a></sub>
-
-<br><br>
-
-<img src="docs/screenshot-main-window.png" alt="Download Craft main window with active, paused, finished and failed downloads" width="92%">
-
-</div>
+> **Credit:** HDM is based on the open-source [DownloadCraft](https://github.com/hungry-detective/downloadcraft)
+> project (MIT License). Original copyright is preserved in `LICENSE`;
+> see `REBRAND.md` for exactly what was changed.
 
 ## 🎬 See it in 90 seconds
 
@@ -43,7 +21,7 @@ https://github.com/user-attachments/assets/acd6afd0-926c-4e11-a718-3edf42c4f7c6
 
 ## ✨ What's new in 0.9.12
 
-- **Get ready**: one small window shows what Download Craft needs (browser connection, extension,
+- **Get ready**: one small window shows what HDM needs (browser connection, extension,
   yt-dlp, FFmpeg, Deno) and fixes it with one click. It opens by itself only when something is missing.
 - **IDM-style head start**: a plain file starts downloading while the Download File Info window is
   still open, so it is already partway done when you press Download.
@@ -53,7 +31,7 @@ https://github.com/user-attachments/assets/acd6afd0-926c-4e11-a718-3edf42c4f7c6
 - **The video button** says just "Download", opens on your usual quality, stays inside the player
   and hides under a site's pinned header.
 
-Full notes: [Release 0.9.12](https://github.com/hungry-detective/downloadcraft/releases/tag/v0.9.12).
+Full notes: [Release 0.9.12](https://github.com/HASAN-USERNAME/hdm/releases/tag/v0.9.12).
 
 ---
 
@@ -151,7 +129,7 @@ Full notes: [Release 0.9.12](https://github.com/hungry-detective/downloadcraft/r
 ## ⚡ The engine
 
 The download engine is a separate, reusable Rust crate,
-[`crates/downloadcraft-engine`](crates/downloadcraft-engine). Use it to make your own downloader fast
+[`crates/hdm-engine`](crates/hdm-engine). Use it to make your own downloader fast
 too (MIT).
 
 - **Work stealing.** When a connection finishes, it splits the part that will finish last, in
@@ -169,13 +147,13 @@ too (MIT).
   its page, keeping every byte already downloaded.
 - **Checks every reply.** A wrong `Content-Range`, a different size, or an HTML error page instead of
   the file is caught before it can corrupt the download.
-- **ZIP preview.** `download_craft peek <url>` lists what's inside a remote ZIP without downloading it.
+- **ZIP preview.** `hdm peek <url>` lists what's inside a remote ZIP without downloading it.
 
 Measured on a home connection (100 MB, 8 connections) against 0.9.8: speedtest.belwue.net went from
 70.6 s to **21.4 s**, and mirror.nforce.com from 28.2 s to **19.7 s**.
 
 ```rust
-let done = downloadcraft_engine::Downloader::new(reqwest::Client::new())
+let done = hdm_engine::Downloader::new(reqwest::Client::new())
     .download(Job::new(url, "file.iso"), progress, control)
     .await?;
 ```
@@ -186,21 +164,21 @@ let done = downloadcraft_engine::Downloader::new(reqwest::Client::new())
 
 | Platform | Download | How |
 |---|---|---|
-| **Windows 10/11** | `DownloadCraft-0.9.12-windows-x64-portable.zip` | Extract and run `download_craft.exe` — nothing to install. |
-| **macOS 12+** | `DownloadCraft-0.9.12-macos-Universal.zip` | Move *Download Craft.app* to Applications (development build, not notarized — right-click → Open the first time). |
-| **Ubuntu / Debian / Mint** | `downloadcraft_0.9.12_amd64.deb` | `sudo apt install ./downloadcraft_0.9.12_amd64.deb` |
-| **Fedora** | `downloadcraft-0.9.12-1.x86_64.rpm` | `sudo dnf install ./downloadcraft-0.9.12-1.x86_64.rpm` |
-| **Other Linux** | `DownloadCraft-0.9.12-x86_64.AppImage` | Make it executable and open it. |
+| **Windows 10/11** | `HDM-0.9.12-windows-x64-portable.zip` | Extract and run `hdm.exe` — nothing to install. |
+| **macOS 12+** | `HDM-0.9.12-macos-Universal.zip` | Move *HDM.app* to Applications (development build, not notarized — right-click → Open the first time). |
+| **Ubuntu / Debian / Mint** | `hdm_0.9.12_amd64.deb` | `sudo apt install ./hdm_0.9.12_amd64.deb` |
+| **Fedora** | `hdm-0.9.12-1.x86_64.rpm` | `sudo dnf install ./hdm-0.9.12-1.x86_64.rpm` |
+| **Other Linux** | `HDM-0.9.12-x86_64.AppImage` | Make it executable and open it. |
 
 **Browser extension**
-1. **Chrome / Edge / Brave:** extract `DownloadCraft-Chrome-0.9.12.zip`, open `chrome://extensions`, turn on
+1. **Chrome / Edge / Brave:** extract `HDM-Chrome-0.9.12.zip`, open `chrome://extensions`, turn on
    *Developer mode*, choose **Load unpacked** and pick the `browser-extension` folder.
 2. **Firefox:** open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → pick
-   `DownloadCraft-Firefox-0.9.12.xpi`.
+   `HDM-Firefox-0.9.12.xpi`.
 3. In the app, open **Settings → Browser Integration** and press **Install** for your browser, so the
    extension can talk to the app. (Without it, the extension still downloads in the browser.)
 
-Your queue and settings live in `%APPDATA%\download_craft` (Windows) and carry over between versions.
+Your queue and settings live in `%APPDATA%\hdm` (Windows) and carry over between versions.
 
 ---
 
@@ -209,7 +187,7 @@ Your queue and settings live in `%APPDATA%\download_craft` (Windows) and carry o
 Prerequisites: [Rust stable](https://www.rust-lang.org/tools/install) (MSVC build tools on Windows).
 
 ```powershell
-cargo build --release   # target\release\download_craft.exe (portable)
+cargo build --release   # target\release\hdm.exe (portable)
 cargo test --workspace  # app + engine crate: unit and local HTTP tests (no network needed)
 node --test browser-extension/*.test.js   # extension tests
 ```
@@ -217,9 +195,9 @@ node --test browser-extension/*.test.js   # extension tests
 Packaging: `python scripts/package.py --platform windows --arch x64` (see [PORTABLE-BUILDS.md](PORTABLE-BUILDS.md)
 for macOS and Linux).
 
-**Command line:** `download_craft.exe add "https://example.com/file.zip"`,
-`download_craft.exe get "https://example.com/file.zip" -o out.zip`,
-`download_craft.exe peek "https://example.com/file.zip"`, `download_craft.exe --help`.
+**Command line:** `hdm.exe add "https://example.com/file.zip"`,
+`hdm.exe get "https://example.com/file.zip" -o out.zip`,
+`hdm.exe peek "https://example.com/file.zip"`, `hdm.exe --help`.
 
 ---
 

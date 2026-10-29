@@ -1,4 +1,4 @@
-// Live link to the Download Craft app, IDM-style.
+// Live link to the HDM app, IDM-style.
 //
 // 1. One persistent native port (runtime.connectNative) instead of starting
 //    the host program for every message: requests carry an id ("rid"), the
@@ -11,9 +11,9 @@
 // 3. Fetch-through-page: when a server refuses the app, the app can ask for
 //    the file to be fetched inside the open page, with its own session.
 //
-// Nothing runs at load time: background.js calls DCBridge.start() once its
+// Nothing runs at load time: background.js calls HDMBridge.start() once its
 // own globals exist (Firefox loads this file first).
-var DCBridge = (() => {
+var HDMBridge = (() => {
   "use strict";
   const api = (typeof browser !== "undefined" && browser.runtime) ? browser : chrome;
   const isFirefox = typeof browser !== "undefined" && browser.runtime && typeof browser.runtime.getBrowserInfo === "function";
@@ -28,7 +28,7 @@ var DCBridge = (() => {
 
   function emit(type, msg) {
     for (const fn of handlers[type] || []) {
-      try { fn(msg); } catch (e) { console.error("[download-craft] bridge handler", e); }
+      try { fn(msg); } catch (e) { console.error("[hdm] bridge handler", e); }
     }
   }
 
@@ -92,7 +92,7 @@ var DCBridge = (() => {
     if (live && port) {
       try { return await call(msg); } catch (e) { /* fall back below */ }
     }
-    return api.runtime.sendNativeMessage(host || "com.download_craft", msg);
+    return api.runtime.sendNativeMessage(host || "com.hdm", msg);
   }
 
   // ---- the browser's side of each request -----------------------------------

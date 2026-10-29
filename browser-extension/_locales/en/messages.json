@@ -1,15 +1,15 @@
 {
   "extName": {
-    "message": "Send to Download Craft"
+    "message": "Send to HDM"
   },
   "extDescription": {
-    "message": "Sends downloads and videos to Download Craft — or downloads them right in the browser."
+    "message": "Sends downloads and videos to HDM — or downloads them right in the browser."
   },
   "menuDownload": {
-    "message": "Download with Download Craft"
+    "message": "Download with HDM"
   },
   "menuDownloadAll": {
-    "message": "Download all links with Download Craft"
+    "message": "Download all links with HDM"
   },
   "busyResolving": {
     "message": "Resolving…"
@@ -18,13 +18,13 @@
     "message": "Capturing…"
   },
   "barChooseQuality": {
-    "message": "Choose video quality in Download Craft"
+    "message": "Choose video quality in HDM"
   },
   "drmProtected": {
     "message": "This video is DRM-protected, so it can't be downloaded: a saved copy would have no picture or sound. Watch it on the site instead."
   },
   "barDownloadVideo": {
-    "message": "Download this video with Download Craft"
+    "message": "Download this video with HDM"
   },
   "panelHint": {
     "message": "Pick a quality below, or send the link as-is."
@@ -66,7 +66,7 @@
     "message": "Find videos on pages and show the download bar on players."
   },
   "popCaptureHint": {
-    "message": "Hand every download to Download Craft."
+    "message": "Hand every download to HDM."
   },
   "popHideBubble": {
     "message": "Hide browser download bubble"
@@ -105,7 +105,7 @@
     "message": "Download"
   },
   "menuDownloadVideo": {
-    "message": "Download video with Download Craft"
+    "message": "Download video with HDM"
   },
   "popOneClick": {
     "message": "One-click download in my last quality"

@@ -1,7 +1,7 @@
 //! IDM-style standalone per-download progress window.
 //!
 //! Launched as a separate window when a download starts from a confirm dialog
-//! or the main Add dialog: `download_craft.exe --progress <id>`.
+//! or the main Add dialog: `hdm.exe --progress <id>`.
 //!
 //! The surface is the card drawn in `Downloading gui concepts.html` — frameless
 //! and transparent, so that rounded card *is* the window: title bar with the
@@ -586,7 +586,7 @@ pub fn run() -> eframe::Result<()> {
         viewport = viewport.with_icon(std::sync::Arc::new(icon));
     }
     eframe::run_native(
-        "Download Craft",
+        "HDM",
         eframe::NativeOptions {
             viewport,
             ..Default::default()
@@ -1187,7 +1187,7 @@ impl ProgressApp {
         p.text(
             egui::pos2(o.x + PAD_X, o.y + y0 + 19.0),
             egui::Align2::LEFT_TOP,
-            "Choose what Download Craft does once the last item in the queue finishes.",
+            "Choose what HDM does once the last item in the queue finishes.",
             reg(10.0),
             pl().dm_dim,
         );

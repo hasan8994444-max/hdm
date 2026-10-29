@@ -104,7 +104,7 @@ mod imp {
     pub fn resolve(url: &str) -> Option<String> {
         let (auto, pac) = ie_config()?;
         unsafe {
-            let agent = wide("Download Craft");
+            let agent = wide("HDM");
             let session = WinHttpOpen(agent.as_ptr(), WINHTTP_ACCESS_TYPE_NO_PROXY, std::ptr::null(), std::ptr::null(), 0);
             if session.is_null() {
                 return None;

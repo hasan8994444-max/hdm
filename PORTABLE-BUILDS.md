@@ -1,4 +1,4 @@
-# Download Craft 0.9.12
+# HDM 0.9.12
 
 Use [the current release instructions](RELEASE-NOTES.md) for Windows, universal
 Mac, Fedora/RPM, Debian-family DEB and AppImage installation and media helpers.

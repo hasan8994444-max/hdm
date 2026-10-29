@@ -2,7 +2,7 @@
 //!
 //! Launched as a separate OS window (always on top) when the browser
 //! extension captures a download:
-//!   `download_craft.exe --confirm-download --url <url> [--filename ..]
+//!   `hdm.exe --confirm-download --url <url> [--filename ..]
 //!    [--referer ..] [--cookie ..] [--mime ..]`
 //!
 //! Unlike the in-canvas Add modal in the main window, this pops in front of
@@ -148,7 +148,7 @@ fn save_remember_category(value: bool) {
     }
 }
 
-const NOT_RUNNING: &str = "Download Craft isn't running — open it, then click Download again.";
+const NOT_RUNNING: &str = "HDM isn't running — open it, then click Download again.";
 
 /// True when the main window is already running (fresh heartbeat).
 /// Replaces process-name counting (two dialogs used to look "live").
@@ -516,7 +516,7 @@ impl ConfirmApp {
         self.pre_tried = true;
         let Some(rt) = self.rt.clone() else { return };
         let name = engine::sanitize_filename(if self.filename.trim().is_empty() { "download" } else { self.filename.trim() });
-        let dir = std::env::temp_dir().join("download-craft-pre").join(format!(
+        let dir = std::env::temp_dir().join("hdm-pre").join(format!(
             "{}-{}",
             std::process::id(),
             chrono::Local::now().timestamp_millis()
@@ -527,7 +527,7 @@ impl ConfirmApp {
         let dest = dir.join(name);
         let opts = EngineOpts {
             user_agent: if self.user_agent.trim().is_empty() {
-                format!("download_craft/{}", crate::model::APP_VERSION)
+                format!("hdm/{}", crate::model::APP_VERSION)
             } else {
                 self.user_agent.clone()
             },
@@ -599,7 +599,7 @@ impl ConfirmApp {
         let page_mime = self.page_mime.clone();
         let opts = EngineOpts {
             user_agent: if self.user_agent.trim().is_empty() {
-                format!("download_craft/{}", crate::model::APP_VERSION)
+                format!("hdm/{}", crate::model::APP_VERSION)
             } else {
                 self.user_agent.clone()
             },

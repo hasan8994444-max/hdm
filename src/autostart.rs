@@ -13,7 +13,7 @@ pub const STARTUP_ARG: &str = "--startup";
 #[cfg(windows)]
 const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 #[cfg(windows)]
-const VALUE: &str = "Download Craft";
+const VALUE: &str = "HDM";
 
 /// What the Run value should say for this program.
 fn command_for(exe: &std::path::Path) -> String {
@@ -67,7 +67,7 @@ fn read_value() -> Option<String> {
     parse_query(&String::from_utf8_lossy(&out.stdout))
 }
 
-/// `reg query` prints `    Download Craft    REG_SZ    "C:\…\download_craft.exe" --startup`.
+/// `reg query` prints `    HDM    REG_SZ    "C:\…\hdm.exe" --startup`.
 fn parse_query(text: &str) -> Option<String> {
     text.lines().find_map(|l| {
         let (_, rest) = l.split_once("REG_SZ")?;
@@ -81,16 +81,16 @@ mod tests {
 
     #[test]
     fn the_run_value_quotes_the_path_and_marks_the_launch() {
-        let c = command_for(std::path::Path::new(r"D:\Apps\Download Craft\download_craft.exe"));
-        assert_eq!(c, r#""D:\Apps\Download Craft\download_craft.exe" --startup"#);
+        let c = command_for(std::path::Path::new(r"D:\Apps\HDM\hdm.exe"));
+        assert_eq!(c, r#""D:\Apps\HDM\hdm.exe" --startup"#);
         assert!(is_startup_launch(&["x".into(), "--startup".into()]));
         assert!(!is_startup_launch(&["x".into()]));
     }
 
     #[test]
     fn reg_query_output_is_read() {
-        let out = "\r\nHKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\r\n    Download Craft    REG_SZ    \"C:\\x y\\download_craft.exe\" --startup\r\n\r\n";
-        assert_eq!(parse_query(out).as_deref(), Some("\"C:\\x y\\download_craft.exe\" --startup"));
+        let out = "\r\nHKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\r\n    HDM    REG_SZ    \"C:\\x y\\hdm.exe\" --startup\r\n\r\n";
+        assert_eq!(parse_query(out).as_deref(), Some("\"C:\\x y\\hdm.exe\" --startup"));
         assert_eq!(parse_query("ERROR: nothing"), None);
     }
 }

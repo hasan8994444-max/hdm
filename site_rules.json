@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Site rules for the Download Craft extension. The app fetches this file from the repository at most once a day and pushes it to the extension, so a site change can be answered without a new extension release. Rules here only extend or override the extension's built-in ones.",
+  "about": "Site rules for the HDM extension. The app fetches this file from the repository at most once a day and pushes it to the extension, so a site change can be answered without a new extension release. Rules here only extend or override the extension's built-in ones.",
   "youtube": {
     "itagQuality": {
       "17": "144p",

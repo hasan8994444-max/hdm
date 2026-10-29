@@ -57,9 +57,9 @@ function status(text, kind) {
 
 // Per-viewer conveniences (which tab, which sections are folded).
 const prefs = (() => {
-  try { return JSON.parse(localStorage.getItem("dcPopup") || "{}"); } catch (e) { return {}; }
+  try { return JSON.parse(localStorage.getItem("hdmPopup") || "{}"); } catch (e) { return {}; }
 })();
-const savePrefs = () => { try { localStorage.setItem("dcPopup", JSON.stringify(prefs)); } catch (e) { /* private window */ } };
+const savePrefs = () => { try { localStorage.setItem("hdmPopup", JSON.stringify(prefs)); } catch (e) { /* private window */ } };
 
 let hostOk = false;
 // Re-renders the Videos tab with what was last found (filters, state changes).
@@ -121,7 +121,7 @@ chrome.runtime.sendMessage({ type: "getState" }, (res) => {
   hostOk = !!res.hostOk;
   $("conn").textContent = res.hostOk ? "● App connected" : "● Browser only";
   $("conn").className = res.hostOk ? "conn ok" : "conn bad";
-  $("conn").title = res.hostOk ? "Download Craft is ready" : (res.hostError || "Download Craft is not running — videos can still be downloaded in the browser.");
+  $("conn").title = res.hostOk ? "HDM is ready" : (res.hostError || "HDM is not running — videos can still be downloaded in the browser.");
   $("auto").checked = !!res.autoCapture;
   $("detect").checked = res.detection !== false;
   $("deep").checked = res.deepDetect !== false;
@@ -175,8 +175,8 @@ $("pauseBtn").onclick = () => {
 // ---------- sending ----------
 function send(msg) {
   chrome.runtime.sendMessage(msg, (res) => {
-    if (chrome.runtime.lastError || !res) status("App not reachable — open Download Craft, or use Download in browser.", "bad");
-    else status(res.ok ? "Sent to Download Craft ✓" : ("Not sent. " + (res.error || "")), res.ok ? "ok" : "bad");
+    if (chrome.runtime.lastError || !res) status("App not reachable — open HDM, or use Download in browser.", "bad");
+    else status(res.ok ? "Sent to HDM ✓" : ("Not sent. " + (res.error || "")), res.ok ? "ok" : "bad");
   });
 }
 function sendBrowser(job) {
@@ -304,8 +304,8 @@ function card(item, mode) {
   dl.className = inBrowser ? "dl br" : "dl";
   dl.innerHTML = SVG.down + `<span>${inBrowser ? "Save" : viaApp ? "Use app" : "Download"}</span>`;
   dl.title = inBrowser ? "Download in this browser — no app needed"
-    : viaApp ? "YouTube only lets the app download it — hands this quality to Download Craft"
-    : "Download with Download Craft";
+    : viaApp ? "YouTube only lets the app download it — hands this quality to HDM"
+    : "Download with HDM";
   // DRM files are listed (so it is clear why) but never downloaded: their
   // bytes are encrypted and a saved copy has no picture or sound.
   const drmBlock = () => {
@@ -336,7 +336,7 @@ function card(item, mode) {
     if (link) add("Copy link", async () => { try { await navigator.clipboard.writeText(link); status("Link copied", "ok"); } catch (e) { status("Could not copy", "bad"); } });
     if (link) add("Open link in new tab", () => api.tabs.create({ url: link }));
     if (mode === "app" && o.browser) add("Download in browser instead", () => sendBrowser({ ...o.browser, title: item.title, pageUrl: item.page }));
-    if (inBrowser) add("Send to Download Craft instead", () => send(o.msg));
+    if (inBrowser) add("Send to HDM instead", () => send(o.msg));
     if (item.page && mode === "app") add("Send page link instead", () => send({ type: "download", url: item.page, pageUrl: item.page }));
     more.appendChild(m);
     openMenu = m;
@@ -580,11 +580,11 @@ function render(peek, pageUrl) {
   items.sort((a, b) => order[a.kind] - order[b.kind]);
   const browserCount = items.filter((it) => it.options.some((o) => o.browser)).length;
   // 1) With the app: every quality, the app resolves and merges.
-  box.appendChild(group("app", "Download with Download Craft", hostOk ? "" : "app not running", items.length, "", (b) => {
+  box.appendChild(group("app", "Download with HDM", hostOk ? "" : "app not running", items.length, "", (b) => {
     if (!hostOk) {
       const n = document.createElement("div");
       n.className = "notice";
-      n.textContent = "Download Craft is not running. Open it to download here, or use “Download in browser” below — it works without the app.";
+      n.textContent = "HDM is not running. Open it to download here, or use “Download in browser” below — it works without the app.";
       b.appendChild(n);
     }
     for (const it of items) { const c = card(it, "app"); if (c) b.appendChild(c); }
@@ -744,9 +744,9 @@ async function renderDownloads() {
     }
     // In the app.
     const items = (app && app.items) || [];
-    sec(`In Download Craft (${app && app.ok ? items.length : "app not running"})`);
+    sec(`In HDM (${app && app.ok ? items.length : "app not running"})`);
     if (!(app && app.ok)) {
-      const e = document.createElement("div"); e.className = "empty"; e.textContent = "Open Download Craft to see its downloads here.";
+      const e = document.createElement("div"); e.className = "empty"; e.textContent = "Open HDM to see its downloads here.";
       box.appendChild(e);
     }
     for (const it of items) {
@@ -802,16 +802,16 @@ async function loadVideos() {
   }
   // Fallback: last stored snapshot, filtered to this tab's page when known.
   chrome.storage.local.get(
-    ["downloadCraftVideos", "downloadCraftLinks", "downloadCraftNet", "downloadCraftPage"],
-    ({ downloadCraftVideos, downloadCraftLinks, downloadCraftNet, downloadCraftPage }) => {
+    ["hdmVideos", "hdmLinks", "hdmNet", "hdmPage"],
+    ({ hdmVideos, hdmLinks, hdmNet, hdmPage }) => {
       const samePage = (p) => !tabUrl || !p || p.split("#")[0] === tabUrl.split("#")[0];
-      const ok = samePage(downloadCraftPage);
+      const ok = samePage(hdmPage);
       render({
-        videos: (downloadCraftVideos || []).filter((v) => samePage(v.pageUrl || downloadCraftPage)),
-        links: ok ? (downloadCraftLinks || []) : [],
-        net: ok ? (downloadCraftNet || []) : [],
+        videos: (hdmVideos || []).filter((v) => samePage(v.pageUrl || hdmPage)),
+        links: ok ? (hdmLinks || []) : [],
+        net: ok ? (hdmNet || []) : [],
         title: tab && tab.title,
-      }, downloadCraftPage || tabUrl);
+      }, hdmPage || tabUrl);
     }
   );
 }

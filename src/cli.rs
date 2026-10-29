@@ -1,6 +1,6 @@
-//! Command-line interface for Download Craft.
+//! Command-line interface for HDM.
 //!
-//! Shares the queue file (`%APPDATA%/download_craft/queue.json`) and settings
+//! Shares the queue file (`%APPDATA%/hdm/queue.json`) and settings
 //! (`ui.json`) with the GUI, so both front-ends manage the same list.
 //!
 //! Note: downloads run in the process that starts them. `download`/`get`
@@ -14,7 +14,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 #[derive(Debug, Parser)]
-#[command(name = "download_craft", version = crate::model::APP_VERSION, about = "Download Craft — download manager (CLI)")]
+#[command(name = "hdm", version = crate::model::APP_VERSION, about = "HDM — download manager (CLI)")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -318,9 +318,9 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             }
             let opts = global_opts();
             let client = opts.build_client()?;
-            let request: downloadcraft_engine::RequestFn = Arc::new(move |u: &str| opts.get(&client, u));
+            let request: hdm_engine::RequestFn = Arc::new(move |u: &str| opts.get(&client, u));
             let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-            let entries = rt.block_on(downloadcraft_engine::zip::list_remote(&request, &url))?;
+            let entries = rt.block_on(hdm_engine::zip::list_remote(&request, &url))?;
             let total: u64 = entries.iter().map(|e| e.size).sum();
             for e in &entries {
                 if e.is_dir {
@@ -437,12 +437,12 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             let icon = tray_icon::Icon::from_rgba(img.into_raw(), w, h)?;
             let menu = tray_icon::menu::Menu::new();
             let show =
-                tray_icon::menu::MenuItem::with_id("tray-show", "Show Download Craft", true, None);
+                tray_icon::menu::MenuItem::with_id("tray-show", "Show HDM", true, None);
             let exit = tray_icon::menu::MenuItem::with_id("tray-exit", "Exit", true, None);
             menu.append_items(&[&show, &exit])?;
             let _tray = tray_icon::TrayIconBuilder::new()
                 .with_menu(Box::new(menu))
-                .with_tooltip("Download Craft (test)")
+                .with_tooltip("HDM (test)")
                 .with_icon(icon)
                 .build()?;
             println!("tray icon created — look in the system tray overflow (▲), 15s…");

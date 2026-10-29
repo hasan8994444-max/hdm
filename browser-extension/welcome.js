@@ -14,7 +14,7 @@
     let st = null;
     try { st = await api.runtime.sendMessage({ type: "getState" }); } catch (e) { /* worker starting */ }
     if (st && st.hostOk) {
-      set("app", "ok", "The app is connected", "Downloads and videos go to Download Craft.");
+      set("app", "ok", "The app is connected", "Downloads and videos go to HDM.");
       $("fix-app").classList.add("hidden");
     } else {
       set("app", "bad", "The app is not reachable", (st && st.hostError) || "");
@@ -30,7 +30,7 @@
   }
 
   const reason = new URLSearchParams(location.search).get("reason");
-  if (reason === "no-app") $("sub").textContent = "The extension cannot reach the Download Craft app.";
+  if (reason === "no-app") $("sub").textContent = "The extension cannot reach the HDM app.";
   $("recheck").addEventListener("click", check);
   check();
 })();

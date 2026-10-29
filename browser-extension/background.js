@@ -2,7 +2,7 @@
 // paused in the browser, handed to the app, and resumed in the browser when
 // the app cannot take it. No clicks, no pasting - zero config.
 
-const HOST = "com.download_craft";
+const HOST = "com.hdm";
 const GRACE_MS = 15_000; // ignore our own fallback re-downloads
 const seen = new Map(); // url -> timestamp (loop guard)
 let hostOk = true;
@@ -34,14 +34,14 @@ try {
 // Live connection to the app (persistent port, pushes, request context).
 try {
   if (typeof importScripts === "function") importScripts("bridge.js");
-} catch (e) { console.error("[download-craft] bridge.js failed to load", e); }
+} catch (e) { console.error("[hdm] bridge.js failed to load", e); }
 // Talk to the app: the live port when there is one, else a one-shot host.
 function hostSend(msg) {
-  if (typeof DCBridge !== "undefined") return DCBridge.send(msg);
+  if (typeof HDMBridge !== "undefined") return HDMBridge.send(msg);
   return api.runtime.sendNativeMessage(HOST, msg);
 }
 // Start the live link now: the start-up ping below already goes through it.
-if (typeof DCBridge !== "undefined") DCBridge.start(HOST);
+if (typeof HDMBridge !== "undefined") HDMBridge.start(HOST);
 
 function markSeen(url, filename) {
   seen.set(url + "|" + (filename || ""), Date.now());
@@ -283,7 +283,7 @@ async function sendToHost(url, filename, extra) {
         } catch (e) { /* host parse failed: no cookies */ }
       }
     }
-    const ctx = typeof DCBridge !== "undefined" ? DCBridge.browserContext(url, extra) : { fromExtension: true };
+    const ctx = typeof HDMBridge !== "undefined" ? HDMBridge.browserContext(url, extra) : { fromExtension: true };
     // The exact Cookie the browser sent with this request beats a cookie-jar
     // lookup (and never leaves its own host: the request was to that URL).
     if (ctx._cookie && !pageOnly && (!cookie || (extra && extra.fromRequest))) cookie = ctx._cookie;
@@ -312,7 +312,7 @@ async function sendToHost(url, filename, extra) {
     // Console-visible: this is the first thing to look at when clicks seem to
     // do nothing (browser console: "No such native application", etc.).
     lastHostError = (e && e.message) || String(e);
-    console.error("[download-craft] native host '" + HOST + "' failed:", lastHostError);
+    console.error("[hdm] native host '" + HOST + "' failed:", lastHostError);
     return false;
   }
 }
@@ -483,7 +483,7 @@ function noteMedia(tabId, entry) {
   // private window (its page and signed media URLs would persist).
   try {
     api.tabs.get(tabId).then((t) => {
-      if (t && !t.incognito) chrome.storage.local.set({ downloadCraftNet: list.slice(-25) });
+      if (t && !t.incognito) chrome.storage.local.set({ hdmNet: list.slice(-25) });
     }).catch(() => {});
   } catch (e) { /* ignore */ }
   // Badge counts downloadable videos/streams, never playlist children or
@@ -849,14 +849,14 @@ async function sendToHostPing() {
     }
     if (!hostOk) lastHostError = "ping answered, but no pong (old host version?)";
     console.log(
-      "[download-craft] native host '" + HOST + "': " +
+      "[hdm] native host '" + HOST + "': " +
         (hostOk ? "connected" : "unexpected reply: " + lastHostError)
     );
   } catch (e) {
     hostOk = false;
     lastHostError = (e && e.message) || String(e);
     console.error(
-      "[download-craft] native host '" + HOST + "' unreachable:", lastHostError
+      "[hdm] native host '" + HOST + "' unreachable:", lastHostError
     );
     // Say how to fix it (at most once a day). The extension keeps working
     // on its own meanwhile: "Download in browser" needs no app.
@@ -866,7 +866,7 @@ async function sendToHostPing() {
   await syncBrowserDownloadUI();
 }
 
-// Pages where "Download video with Download Craft" is also on the page menu.
+// Pages where "Download video with HDM" is also on the page menu.
 const VIDEO_SITE_PATTERNS = [
   "*://*.youtube.com/*", "*://*.facebook.com/*", "*://*.instagram.com/*", "*://*.tiktok.com/*",
   "*://*.x.com/*", "*://x.com/*", "*://*.twitter.com/*", "*://*.reddit.com/*", "*://*.vimeo.com/*", "*://vimeo.com/*",
@@ -898,8 +898,8 @@ chrome.runtime.onInstalled.addListener((details) => {
   // removeAll first: re-installs otherwise fail with duplicate-id.
   api.contextMenus.removeAll().then(() => {
     chrome.contextMenus.create({
-      id: "send-to-download-craft",
-      title: msg("menuDownload", "Download with Download Craft"),
+      id: "send-to-hdm",
+      title: msg("menuDownload", "Download with HDM"),
       contexts: ["link", "audio"],
     });
     // The video under the pointer, as its button would download it. Video
@@ -907,12 +907,12 @@ chrome.runtime.onInstalled.addListener((details) => {
     // the <video>), so on those the item is on the page menu too.
     chrome.contextMenus.create({
       id: "download-video",
-      title: msg("menuDownloadVideo", "Download video with Download Craft"),
+      title: msg("menuDownloadVideo", "Download video with HDM"),
       contexts: ["video"],
     });
     chrome.contextMenus.create({
       id: "download-video-page",
-      title: msg("menuDownloadVideo", "Download video with Download Craft"),
+      title: msg("menuDownloadVideo", "Download video with HDM"),
       contexts: ["page", "frame"],
       documentUrlPatterns: VIDEO_SITE_PATTERNS,
     });
@@ -920,7 +920,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     // selection) into the app's pick-and-queue list.
     chrome.contextMenus.create({
       id: "download-all-links",
-      title: msg("menuDownloadAll", "Download all links with Download Craft"),
+      title: msg("menuDownloadAll", "Download all links with HDM"),
       contexts: ["page", "selection"],
     });
     // IDM's "Download with IDM" on the browser's own downloads page: hand an
@@ -929,7 +929,7 @@ chrome.runtime.onInstalled.addListener((details) => {
       try {
         chrome.contextMenus.create({
           id: "download-item",
-          title: msg("menuDownload", "Download with Download Craft"),
+          title: msg("menuDownload", "Download with HDM"),
           contexts: ["link"],
           documentUrlPatterns: ["chrome://downloads/*"],
         }, () => void chrome.runtime.lastError);
@@ -1116,7 +1116,7 @@ async function performBrowserCapture(item) {
   if (skipped(item.url) || skipped(url)) return;
   // A form (POST) download is handed over with its body when the browser
   // showed it to us; without the body it stays in the browser.
-  const ctx = typeof DCBridge !== "undefined" ? DCBridge.browserContext(url) : {};
+  const ctx = typeof HDMBridge !== "undefined" ? HDMBridge.browserContext(url) : {};
   const post = ctx._post || nonReplayableDownload(item.url) || nonReplayableDownload(url);
   if (post && ctx.method !== "POST") return;
   if (hostBlocked(url, cfg.blockHosts)) return; // P0.1 site filter
@@ -1198,7 +1198,7 @@ function captureBrowserDownload(item) {
   if (previous) { Object.assign(previous.item,item); return previous.promise; }
   const state = {item:{...item},promise:null};
   state.promise = performBrowserCapture(state.item).catch(e => {
-    console.error("[download-craft] capture failed",e);
+    console.error("[hdm] capture failed",e);
   });
   browserCaptures.set(item.id,state);
   if (browserCaptures.size > 200) browserCaptures.delete(browserCaptures.keys().next().value);
@@ -1510,7 +1510,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return {
           ok: false,
           error: lastHostError ||
-            "native host unreachable — reinstall it from Download Craft → Settings → Browser integration, then restart Chrome",
+            "native host unreachable — reinstall it from HDM → Settings → Browser integration, then restart Chrome",
         };
       } catch (e) {
         return { ok: false, error: (e && e.message) || String(e) };
@@ -1711,7 +1711,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return { ok: true };
     }
     if (msg.type === "pageFetchChunk" && typeof msg.id === "string" && sender && sender.tab) {
-      return typeof DCBridge !== "undefined" ? DCBridge.relayChunk(msg) : { ok: false };
+      return typeof HDMBridge !== "undefined" ? HDMBridge.relayChunk(msg) : { ok: false };
     }
     if (msg.type === "captureLink") {
       const cfg = await settings();
@@ -1729,7 +1729,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const cfg = await settings();
       const downloadUI = await syncBrowserDownloadUI();
       return { hideBrowserUI:!!cfg.hideBrowserUI, downloadUI, autoCapture: !!cfg.autoCapture, detection: detectionOn, deepDetect: cfg.deepDetect !== false, minSizeKB: cfg.minSizeKB, blockHosts: cfg.blockHosts, hostOk, hostError: lastHostError || null, fallbackError: lastFallbackError || null,
-        live: typeof DCBridge !== "undefined" && DCBridge.live(), captureTypes: cfg.captureTypes || "" };
+        live: typeof HDMBridge !== "undefined" && HDMBridge.live(), captureTypes: cfg.captureTypes || "" };
     }
     if (msg.type === "setAuto" && typeof msg.value === "boolean") {
       await api.storage.local.set({ autoCapture: msg.value });
@@ -1797,18 +1797,18 @@ function browserCanTake(c) {
   return typeof DCRank !== "undefined" && (DCRank.isPlaylistUrl(c.url) || /\.(mp4|webm|mkv|mov|m4v|mp3|m4a|aac|ogg|opus|flac|wav)(\?|#|$)/i.test(c.url.split("?")[0]) || /googlevideo\.com\//i.test(c.url));
 }
 
-if (typeof DCBridge !== "undefined") {
-  DCBridge.on("state", (m) => {
+if (typeof HDMBridge !== "undefined") {
+  HDMBridge.on("state", (m) => {
     hostOk = hostOk || !!m.live;
     if (m.live) { lastHostError = ""; setBadge(); }
   });
-  DCBridge.on("settings", async (m) => {
+  HDMBridge.on("settings", async (m) => {
     const prefs = (m.settings && typeof m.settings === "object") ? m.settings : {};
     const rules = (m.rules && typeof m.rules === "object") ? m.rules : null;
     await api.storage.local.set({ appPrefs: prefs, siteRules: rules });
     await syncBrowserDownloadUI();
   });
-  DCBridge.on("event", async (m) => {
+  HDMBridge.on("event", async (m) => {
     // Only downloads this browser sent (another browser may share the app).
     if (!sentCaptures.has(m.url)) return;
     const cfg = await settings();
